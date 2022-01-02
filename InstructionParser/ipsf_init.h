@@ -64,7 +64,7 @@ expr_t IPSF_ReduceExpr_toConstant(mod_t *, expr_t);
 int _IPSF_IsDataType_Void(expr_t);
 
 /**
- * @brief Checks if a data type is void
+ * @brief Checks if a data type is None
  * @param expr Expression to check
  * @return int 
  */
