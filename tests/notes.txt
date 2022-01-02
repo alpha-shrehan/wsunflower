@@ -1,0 +1,291 @@
+expr_t lhs = *(expr->v.unary_arith_op_expr.lhs),
+               rhs = *(expr->v.unary_arith_op_expr.rhs);
+        expr_t res;
+        res.type = EXPR_TYPE_CONSTANT;
+
+        lhs = IPSF_ReduceExpr_toConstant(mod, lhs);
+        rhs = IPSF_ReduceExpr_toConstant(mod, rhs);
+
+        switch (expr->v.unary_arith_op_expr.op)
+        {
+        case UNARY_OP_ADD:
+        {
+            if (lhs.type == rhs.type)
+            {
+                switch (lhs.type)
+                {
+                case EXPR_TYPE_CONSTANT:
+                {
+                    if (lhs.v.constant.constant_type ==
+                        rhs.v.constant.constant_type)
+                    {
+                        switch (lhs.v.constant.constant_type)
+                        {
+                        case CONSTANT_TYPE_INT:
+                        {
+                            res.v.constant.constant_type = CONSTANT_TYPE_INT;
+                            res.v.constant.Int.value = (lhs.v.constant.Int.value +
+                                                        rhs.v.constant.Int.value);
+                        }
+                        break;
+                        case CONSTANT_TYPE_FLOAT:
+                        {
+                            res.v.constant.constant_type = CONSTANT_TYPE_FLOAT;
+                            res.v.constant.Float.value = (lhs.v.constant.Float.value +
+                                                          rhs.v.constant.Float.value);
+                        }
+                        break;
+
+                        default:
+                            break;
+                        }
+                    }
+                    else
+                    {
+                        if ((
+                                lhs.v.constant.constant_type == CONSTANT_TYPE_INT ||
+                                lhs.v.constant.constant_type == CONSTANT_TYPE_FLOAT) &&
+                            (rhs.v.constant.constant_type == CONSTANT_TYPE_INT ||
+                             rhs.v.constant.constant_type == CONSTANT_TYPE_FLOAT))
+                        {
+                            float lhs_f, rhs_f;
+                            if (lhs.v.constant.constant_type == CONSTANT_TYPE_INT)
+                                lhs_f = (float) lhs.v.constant.Int.value;
+                            else
+                                lhs_f = lhs.v.constant.Float.value;
+                            
+                            if (rhs.v.constant.constant_type == CONSTANT_TYPE_INT)
+                                rhs_f = (float) rhs.v.constant.Int.value;
+                            else
+                                rhs_f = rhs.v.constant.Float.value;
+                            
+                            res.v.constant.constant_type = CONSTANT_TYPE_FLOAT;
+                            res.v.constant.Float.value = lhs_f + rhs_f;
+                        }
+                    }
+                }
+                break;
+
+                default:
+                    break;
+                }
+            }
+        }
+        break;
+
+        default:
+            break;
+        }
+
+        *RES = res;
+
+
+
+
+
+
+
+
+
+
+
+expr_t ret_cpy = ret;
+                ret.type = EXPR_TYPE_UNARY_ARITHMETIC_OP;
+                ret.v.unary_arith_op_expr.lhs = OSF_Malloc(sizeof(expr_t));
+                *(ret.v.unary_arith_op_expr.lhs) = ret_cpy;
+                psf_byte_array_t *_rhs_ar = _PSF_newByteArray();
+
+                for (size_t j = i + 1; j < arr->size; j++)
+                    PSF_AST_ByteArray_AddNode(_rhs_ar, arr->nodes[j]);
+
+                ret.v.unary_arith_op_expr.rhs = OSF_Malloc(sizeof(expr_t));
+                *(ret.v.unary_arith_op_expr.rhs) = SF_FrameExpr_fromByte(_rhs_ar);
+                ret.v.unary_arith_op_expr.op = UNARY_OP_ADD;
+
+                OSF_Free(_rhs_ar->nodes);
+                OSF_Free(_rhs_ar);
+                doBreak = 1;
+                break;
+
+
+
+
+
+
+
+
+
+
+psf_byte_t c = mod->ast->nodes[i];
+
+                        if (c.nval_type == AST_NVAL_TYPE_OPERATOR)
+                        {
+                            if (!strcmp(c.v.Operator.val, "(") ||
+                                !strcmp(c.v.Operator.val, "{") ||
+                                !strcmp(c.v.Operator.val, "["))
+                                gb++;
+                            else if (!strcmp(c.v.Operator.val, ")") ||
+                                     !strcmp(c.v.Operator.val, "}") ||
+                                     !strcmp(c.v.Operator.val, "]"))
+                                gb--;
+                        }
+
+                        if (c.nval_type == AST_NVAL_TYPE_NEWLINE && !gb)
+                            break;
+
+
+
+class Test
+    a = 10
+
+    fun test(var)
+        write(var, Test.a)
+
+Test.test(10)
+
+
+if (fun_s.arg_acceptance_count >= 0)
+                assert(expr->v.function_call.arg_size == fun_s.arg_acceptance_count && SF_FMT("Error: Invalid number of arguments passed."));
+
+            mod_t *fun_mod = SF_CreateModule(MODULE_TYPE_FUNCTION, NULL);
+            OSF_Free(BODY(fun_mod)->body);
+
+            expr_t *_collectivise_args = OSF_Malloc(sizeof(expr_t) * (expr->v.function_call.arg_size ? expr->v.function_call.arg_size : 1));
+            int _collectivise_args_count = 0;
+            expr_t *_cargs_without_voids;
+            int _cargs_without_voids_size = 0;
+
+            fun_mod->parent = mod;
+            for (size_t j = 0; j < expr->v.function_call.arg_size; j++)
+            {
+                expr_t temp = IPSF_ReduceExpr_toConstant(fun_mod, expr->v.function_call.args[j]);
+
+                // if (!_IPSF_IsDataType_Void(temp))
+                _collectivise_args[_collectivise_args_count++] = temp;
+            }
+
+            if (fun_s.is_native)
+            {
+                for (size_t j = 0; j < fun_s.v.Native.arg_size; j++)
+                {
+                    expr_t *texpr = OSF_Malloc(sizeof(expr_t));
+
+                    if (fun_s.v.Native.args[j].next == NULL)
+                        *texpr = (expr_t){
+                            .type = EXPR_TYPE_CONSTANT,
+                            .v.constant = {
+                                .constant_type = CONSTANT_TYPE_DTYPE,
+                                .DType = {
+                                    .type = DATA_TYPE_VOID}}};
+                    else
+                        *texpr = *(fun_s.v.Native.args[j].next);
+
+                    IPSF_ExecVarDecl_fromStmt(
+                        fun_mod,
+                        (stmt_t){
+                            .type = STATEMENT_TYPE_VAR_DECL,
+                            .v = {
+                                .var_decl = {
+                                    .name = fun_s.v.Native.args[j].v.variable.name,
+                                    .expr = texpr}}},
+                        NULL);
+
+                    OSF_Free(texpr);
+                }
+            }
+            else
+            {
+                fun_mod->parent = NULL;
+                for (size_t j = 0; j < fun_s.v.Coded.arg_size; j++)
+                {
+                    _IPSF_AddVar_toModule(fun_mod, fun_s.v.Coded.args[j].name, fun_s.v.Coded.args[j].val);
+                }
+                fun_mod->parent = mod;
+            }
+
+            _cargs_without_voids = _PSF_RemoveVoidsFromExprArray(_collectivise_args, _collectivise_args_count, &_cargs_without_voids_size);
+
+            switch (fun_s.arg_acceptance_count)
+            {
+            case -1:
+            {
+                var_t *first_void_ref = NULL;
+
+                for (size_t j = 0; j < fun_mod->var_holds_size; j++)
+                {
+                    if (_IPSF_IsDataType_Void(fun_mod->var_holds[j].val))
+                    {
+                        first_void_ref = &(fun_mod->var_holds[j]);
+                        break;
+                    }
+                }
+
+                assert(first_void_ref != NULL && SF_FMT("Error: Function with variable arguments needs to have an undefined variable"));
+
+                (*first_void_ref).val = (expr_t){
+                    .type = EXPR_TYPE_CONSTANT,
+                    .v = {
+                        .constant = {
+                            .constant_type = CONSTANT_TYPE_ARRAY,
+                            .Array = {
+                                .len = _cargs_without_voids_size,
+                                .vals = _cargs_without_voids}}}};
+
+                first_void_ref = NULL;
+            }
+            break;
+
+            default:
+            {
+                int _t = 0;
+                for (size_t j = 0; j < fun_mod->var_holds_size; j++)
+                {
+                    if (_IPSF_IsDataType_Void(_collectivise_args[j]))
+                        continue;
+
+                    fun_mod->var_holds[j].val = _collectivise_args[j];
+                }
+            }
+            break;
+            }
+
+            if (fun_s.is_native)
+            {
+                expr_t *res = fun_s.v.Native.f(fun_mod);
+                expr_t temp = *res;
+                *RES = temp;
+                OSF_Free(res);
+            }
+            else
+            {
+                BODY(fun_mod)->body = fun_s.v.Coded.body;
+                BODY(fun_mod)->body_size = fun_s.v.Coded.body_size;
+                BODY(fun_mod)->name = expr->v.function_call.name->v.variable.name;
+                OSF_Free(IPSF_ExecIT_fromMod(fun_mod, err));
+
+                if (fun_mod->returns == NULL)
+                {
+                    *RES = (expr_t){
+                        .type = EXPR_TYPE_CONSTANT,
+                        .v = {
+                            .constant = {
+                                .constant_type = CONSTANT_TYPE_DTYPE,
+                                .DType = {
+                                    .type = DATA_TYPE_NONE}}}};
+                }
+                else
+                {
+                    expr_t *res = fun_mod->returns;
+                    expr_t temp = *res;
+                    *RES = temp;
+                    OSF_Free(res);
+                }
+            }
+
+            fun_mod->parent = NULL;
+
+            OSF_Free(_cargs_without_voids);
+            OSF_Free(_collectivise_args);
+
+            OSF_Free(fun_mod->var_holds);
+            OSF_Free(fun_mod);

@@ -1,0 +1,5 @@
+add_executable(test_exe test.c)
+include_directories(../)
+include_directories(C:/Users/USER/Desktop/Github_Sources/gc/include)
+target_link_libraries(test_exe sunflower)
+add_test(test test_exe)

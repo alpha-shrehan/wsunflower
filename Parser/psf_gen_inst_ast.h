@@ -1,0 +1,675 @@
+#pragma once
+
+#define BODY(X) _mod_body(X)
+
+#include <assert.h>
+#include <limits.h>
+#include <Object/osf_mem.h>
+#include <Parser/psf_gen_ast.h>
+
+enum ExprTypeEnum
+{
+    EXPR_TYPE_CONSTANT,
+    EXPR_TYPE_VARIABLE,
+    EXPR_TYPE_FUNCTION_CALL,
+    EXPR_TYPE_FUNCTION,
+    EXPR_TYPE_INLINE_ASSIGNMENT,
+    EXPR_TYPE_LOGICAL_ARITHMETIC_OP,
+    EXPR_TYPE_TO_STEP_CLAUSE,
+    EXPR_TYPE_INDEX_OP,
+    EXPR_TYPE_INLINE_FOR,
+    EXPR_TYPE_UNARY_ARITHMETIC_OP,
+    EXPR_TYPE_THEN_WHILE,
+    EXPR_TYPE_INLINE_REPEAT,
+    EXPR_TYPE_CLASS,
+    EXPR_TYPE_MEMBER_ACCESS
+};
+
+enum ConstantTypeEnum
+{
+    CONSTANT_TYPE_INT,
+    CONSTANT_TYPE_FLOAT,
+    CONSTANT_TYPE_STRING, // Strings in Sunflower start and end with single quote
+    CONSTANT_TYPE_BOOL,
+    CONSTANT_TYPE_DTYPE,
+    CONSTANT_TYPE_ARRAY,
+    CONSTANT_TYPE_CLASS_OBJECT
+};
+
+enum DataTypeEnum
+{
+    DATA_TYPE_NONE,
+    DATA_TYPE_VOID
+};
+
+enum ExprLogicalOpEnum
+{
+    LOGICAL_OP_EQEQ,
+    LOGICAL_OP_LEQ,
+    LOGICAL_OP_GEQ,
+    LOGICAL_OP_NEQ,
+    LOGICAL_OP_LEEQ,
+    LOGICAL_OP_GEEQ
+};
+
+/**
+ * @brief These enums are arranged in order (increasing) of their
+ * precedence in BODMAS (PEMDAS).
+ * Operators who do not fall under this principle follow
+ * Python's precedence ordering
+ */
+enum ExprArithmeticOpEnum
+{
+    UNARY_OP_SUB,
+    UNARY_OP_ADD,
+    UNARY_OP_MUL,
+    UNARY_OP_DIV,
+    UNARY_OP_MOD
+};
+
+enum ExprArithmeticOpOrderEnum
+{
+    ORDER_CONSTANT,
+    ORDER_OPERATOR
+};
+
+struct _expr
+{
+    enum ExprTypeEnum type;
+    struct _expr *next; // Backup for expressions that represent a symbol and need to have a value (example default function arguments)
+
+    union
+    {
+        struct
+        {
+            enum ConstantTypeEnum constant_type;
+
+            union
+            {
+                struct
+                {
+                    int value;
+                } Int;
+
+                struct
+                {
+                    double value;
+                    int is_inf;
+                } Float;
+
+                struct
+                {
+                    char *value;
+                } String;
+
+                struct
+                {
+                    int value;
+                } Bool;
+
+                struct
+                {
+                    enum DataTypeEnum type;
+                } DType;
+
+                struct
+                {
+                    struct _expr *vals;
+                    int len;
+                } Array;
+
+                struct
+                {
+                    int_tuple idx;
+                } ClassObj;
+            };
+        } constant;
+
+        struct
+        {
+            char *name;
+        } variable;
+
+        struct
+        {
+            int is_func_call;
+            struct _expr *name;
+            struct _expr *args;
+            int arg_size;
+        } function_call;
+
+        struct
+        {
+            char *name;
+            int index;
+        } function_s;
+
+        struct
+        {
+            struct _expr *lhs;
+            struct _expr *rhs;
+        } inline_assignment;
+
+        struct
+        {
+            struct _expr *lhs;
+            enum ExprLogicalOpEnum op;
+            struct _expr *rhs;
+        } logical_arith_op_expr;
+
+        struct
+        {
+            struct _expr *lhs;
+            struct _expr *rhs;
+            struct _expr *_step;
+
+        } to_step_clause;
+
+        struct
+        {
+            struct _expr *entity;
+            struct _expr *index;
+        } index_op;
+
+        struct
+        {
+            struct _expr *body;
+            struct _expr *condition;
+            void *vars; // Cast to (var_t *)
+            int var_size;
+        } inline_for;
+
+        struct
+        {
+            struct _expr *sibs;
+            int sibs_size;
+            enum ExprArithmeticOpEnum *ops;
+            int ops_size;
+            enum ExprArithmeticOpOrderEnum *order;
+            int order_count;
+
+        } unary_arith_op_expr;
+
+        struct
+        {
+            struct _expr *body;
+            struct _expr *condition;
+            void *withs; // Cast to (var_t *)
+            int withs_size;
+            void *assigns; // Case to (var_t *)
+            int assigns_size;
+        } then_while;
+
+        struct
+        {
+            struct _expr *body;
+            struct _expr *cond;
+        } inline_repeat;
+
+        struct
+        {
+            int index;
+        } class_expr;
+
+        struct
+        {
+            struct _expr *parent;
+            char *child;
+        } member_access;
+
+    } v;
+};
+
+typedef struct _expr expr_t;
+
+enum StatementTypeEnum
+{
+    STATEMENT_TYPE_EXPR,
+    STATEMENT_TYPE_IF,
+    STATEMENT_TYPE_ELIF,
+    STATEMENT_TYPE_ELSE,
+    STATEMENT_TYPE_WHILE,
+    STATEMENT_TYPE_FOR,
+    STATEMENT_TYPE_RETURN,
+    STATEMENT_TYPE_BREAK,
+    STATEMENT_TYPE_CONTINUE,
+    STATEMENT_TYPE_VAR_DECL,
+    STATEMENT_TYPE_FUNCTION_DECL,
+    STATEMENT_TYPE_CLASS_DECL,
+    STATEMENT_TYPE_IMPORT,
+    STATEMENT_TYPE_COMMENT,
+    STATEMENT_TYPE_VAR_REF,
+    STATEMENT_TYPE_REPEAT
+};
+
+struct _conditional_struct
+{
+    expr_t *condition;
+    struct _stmt *body;
+    int body_size;
+
+    struct _conditional_struct *elif_stmts; // Can be many
+    int elif_stmts_count;
+
+    /**
+     * For .else_stmt
+     * Only one entity.
+     * condition will not be used.
+     * elif_stmts will not be used.
+     * elif_stmts_count will not be used
+     * else_stmt will not be used
+     */
+    struct _conditional_struct *else_stmt;
+};
+
+struct __mod_child_varhold_s
+{
+    char *name;
+    expr_t val;
+};
+
+typedef struct __mod_child_varhold_s var_t;
+
+struct _stmt
+{
+    enum StatementTypeEnum type;
+
+    union
+    {
+        struct
+        {
+            expr_t *expr;
+        } expr;
+
+        struct _conditional_struct if_stmt; // Because of nested _conditional_struct loops
+
+        struct
+        {
+            expr_t *condition;
+            struct _stmt *body;
+            int body_size;
+        } while_stmt;
+
+        struct
+        {
+            var_t *vars;
+            int var_size;
+            expr_t *condition;
+            struct _stmt *body;
+            int body_size;
+        } for_stmt;
+
+        struct
+        {
+            expr_t *expr;
+        } return_stmt;
+
+        struct
+        {
+            char algn;
+        } break_stmt;
+
+        struct
+        {
+            char algn;
+        } continue_stmt;
+
+        struct
+        {
+            expr_t *name;
+            expr_t *expr;
+        } var_decl;
+
+        struct
+        {
+            char *name;
+            var_t *args;
+            int arg_size;
+            struct _stmt *body;
+            int body_size;
+        } function_decl;
+
+        struct
+        {
+            char *name;
+            struct _stmt *body;
+            int body_size;
+        } class_decl;
+
+        struct
+        {
+            char *name;
+            expr_t *args;
+        } import;
+
+        struct
+        {
+            char *value;
+        } comment;
+
+        struct
+        {
+            char *name;
+        } var_ref;
+
+        struct
+        {
+            expr_t *condition;
+            struct _stmt *body;
+            int body_size;
+        } repeat_stmt;
+
+    } v;
+};
+
+typedef struct _stmt stmt_t;
+
+enum ModuleTypeEnum
+{
+    MODULE_TYPE_FILE, // Main program and import modules
+    MODULE_TYPE_FUNCTION,
+    MODULE_TYPE_CLASS,
+    MODULE_TYPE_INTERACTIVE // Shell
+};
+
+struct __mod_child_body_type_hold_s
+{
+    char *name;
+    stmt_t *body;
+    int body_size;
+};
+
+struct _mod
+{
+    enum ModuleTypeEnum type;
+
+    struct __mod_child_varhold_s *var_holds;
+    int var_holds_size;
+
+    union
+    {
+        struct __mod_child_body_type_hold_s function_s,
+            class_s,
+            file_s;
+    } v;
+
+    expr_t *returns;
+    struct _mod *parent;
+    psf_byte_array_t *ast;
+    void *class_objects; // Cast to class_t *
+    int class_objects_count;
+};
+
+typedef struct _mod mod_t;
+
+struct _fun
+{
+    char *name;
+    int is_native;
+    int arg_acceptance_count; // -1 for va_args, -2 for args with pre-def values
+
+    union
+    {
+        struct
+        {
+            expr_t *args;
+            int arg_size;
+            expr_t *(*f)(mod_t *);
+        } Native;
+
+        struct
+        {
+            var_t *args;
+            int arg_size;
+            stmt_t *body;
+            int body_size;
+            // expr_t *returns;
+        } Coded;
+
+    } v;
+};
+
+typedef struct _fun fun_t;
+
+struct _class
+{
+    char *name;
+    int is_native;
+    mod_t *mod;
+    int object_count; // Acts as object counter for classes, and reference counter for class objects
+    int killed;
+
+    struct _class *objects;
+};
+
+typedef struct _class class_t;
+
+/**
+ * @brief Create a new module
+ * @param mod_type Type of module
+ * @param ast_ref AST reference dump
+ * @return mod_t
+ */
+mod_t *SF_CreateModule(enum ModuleTypeEnum, psf_byte_array_t *);
+
+/**
+ * @brief Copy module and return it
+ * @param mod Module
+ * @return mod_t*
+ */
+mod_t *SF_ModuleCopy(mod_t *);
+
+/**
+ * @brief Destroy a module
+ * @param mod Module
+ */
+void SF_DestroyModule(mod_t *);
+
+/**
+ * @brief Get module body respective to type of module
+ * @param mod_ref Module reference
+ * @return struct __mod_child_body_type_hold_s
+ */
+struct __mod_child_body_type_hold_s *_mod_body(mod_t *);
+
+/**
+ * @brief Compress bytecode to expression
+ * @param arr Byte array
+ * @return expr_t
+ */
+expr_t SF_FrameExpr_fromByte(psf_byte_array_t *);
+
+/**
+ * @brief Sunflower Instruction Tree from AST
+ * @param mod Module reference
+ */
+void SF_FrameIT_fromAST(mod_t *);
+
+/**
+ * @brief Print type of statement
+ * @param _en Statement enum
+ */
+void PSG_PrintStatementType(enum StatementTypeEnum);
+
+/**
+ * @brief Print type of expression
+ * @param _en Expression enum
+ */
+void PSG_PrintExprType(enum ExprTypeEnum);
+
+/**
+ * @brief Convert Sunflower entity to C and return it
+ * (does not tell you about the type of eneity)
+ * @param en Expression enum
+ * @return void* Ambiguous pointer
+ */
+void *SF_CCast_Entity(expr_t);
+
+/**
+ * @brief Add statement to module
+ * @param mod Module
+ * @param stmt Statement
+ */
+void PSG_AddStmt_toMod(mod_t *, stmt_t);
+
+/**
+ * @brief Get reference of variable that stores all functions of Sunflower
+ * @return fun_t**
+ */
+fun_t **PSG_GetFunctions(void);
+
+/**
+ * @brief Get reference to variable that stores function holder's size
+ * @return int *
+ */
+int *PSG_GetFunctionsSize(void);
+
+/**
+ * @brief Get reference of variable that stores all classes of Sunflower
+ * @return class_t**
+ */
+class_t **PSG_GetClasses(void);
+
+/**
+ * @brief Get reference to variable that stores class holder's size
+ * @return int*
+ */
+int *PSG_GetClassesSize(void);
+
+/**
+ * @brief Environment Initializer for Sunflower PSG
+ */
+void _PSG_EnvInit(void);
+
+/**
+ * @brief Add function to function holder
+ * @param _fun Function
+ * @return int
+ */
+int PSG_AddFunction(fun_t);
+
+/**
+ * @brief Add class to class holder
+ * @param _class Class
+ * @return int
+ */
+int PSG_AddClass(class_t);
+
+/**
+ * @brief Add class instance to module
+ * @param _class Class
+ * @param mod Module
+ * @return int
+ */
+int PSG_AddClassObject_toModule(class_t, mod_t *);
+
+/**
+ * @brief Adds class to object counter of global classes storage stack
+ * @param _class Class
+ * @param idx Class index
+ * @return int_tuple
+ */
+int_tuple PSG_AddClassObject_toClass(class_t, int);
+
+/**
+ * @brief Get current tab scope
+ * @param arr Array
+ * @param st Start index
+ * @return int
+ */
+int _PSF_GetTabspace(psf_byte_array_t *, int);
+
+/**
+ * @brief Get tabbed body of a loop
+ * @param arr Array
+ * @param st Start index
+ * @param tab Tabspace
+ * @return psf_byte_array_t*
+ */
+psf_byte_array_t *_PSF_GetBody(psf_byte_array_t *, int, int);
+
+/**
+ * @brief Check if an entity is true
+ * @param ent Entity
+ * @return int
+ */
+int _PSF_EntityIsTrue(expr_t);
+
+/**
+ * @brief Remove SF voids from an expr_t array
+ * @param arr Array
+ * @param size Size of array
+ * @param sz_ptr Result size pointer
+ * NOTE: Store the reference and clear it later
+ * @return expr_t*
+ */
+expr_t *_PSF_RemoveVoidsFromExprArray(expr_t *, int, int *);
+
+/**
+ * @brief Construct for loop AST from bytes
+ * @param mod Module
+ * @param idx Start index
+ * @param body_sz_ptr body AST size pointer
+ * @return stmt_t
+ */
+stmt_t _PSF_ConstructForLoopStmt(mod_t *, int, int *);
+
+/**
+ * @brief Construct inline for loop AST from bytes
+ * @param arr Array
+ * @param idx Index where for loop was encountered
+ * @return expr_t
+ */
+expr_t _PSF_ConstructInlineForExpr(psf_byte_array_t *, int);
+
+/**
+ * @brief Construct variable from AST
+ * Types: (var), var, ((var)), ((var) = (expr)), var = expr.
+ * Used in for loops
+ * @param arr Array
+ * @return var_t
+ */
+var_t _PSF_GenerateVarFromByte(psf_byte_array_t *);
+
+/**
+ * @brief Construct inline while..then loop AST from bytes
+ * @param arr Array
+ * @param idx Index where while keyword was encountered
+ * @return expr_t
+ */
+expr_t _PSF_ConstructWhileThenExpr(psf_byte_array_t *, int);
+
+/**
+ * @brief Construct repeat loop from bytes
+ * @param mod Module
+ * @param idx Start index
+ * @param bd_sz_ptr Body size pointer
+ * @return stmt_t
+ */
+stmt_t _PSF_ConstructRepeatLoopStmt(mod_t *, int, int *);
+
+/**
+ * @brief Construct repeat expression
+ * @param arr Array
+ * @param idx Start index
+ * @return expr_t
+ */
+expr_t _PSF_ConstructRepeatExpr(psf_byte_array_t *, int);
+
+/**
+ * @brief Construct function declaration AST from bytes
+ * @param arr Array
+ * @param idx Start index
+ * @param bd_sz_ptr body AST size pointer
+ * @return stmt_t
+ */
+stmt_t _PSF_ConstructFunctionStmt(psf_byte_array_t *, int, int *);
+
+/**
+ * @brief Create class from bytes
+ * @param arr Array
+ * @param idx Start index
+ * @param res_loc_ptr Result index (to be directly assigned to i)
+ * @return stmt_t
+ */
+stmt_t _PSF_ConstructClassStmt(psf_byte_array_t *, int, size_t *);
