@@ -15,6 +15,9 @@
 // Instruction Parser
 #include <InstructionParser/ipsf_init.h>
 
+// Built-ins
+#include <builtins/built_in.h>
+
 #include <gc.h>
 
 /**

@@ -1,4 +1,5 @@
 #include "ipsf_init.h"
+#include <Parser/array_t.h>
 
 /**
  * MAIN:
@@ -6,7 +7,15 @@
 expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
 {
     expr_t *RET = (expr_t *)OSF_Malloc(sizeof(expr_t));
-    RET->next = NULL;
+    *RET = (expr_t){
+        .type = EXPR_TYPE_CONSTANT,
+        .v = {
+            .constant = {
+                .constant_type = CONSTANT_TYPE_DTYPE,
+                .DType = {
+                    .type = DATA_TYPE_NONE}}},
+        .next = NULL};
+
     if (err != NULL)
         *err = IPSF_OK;
 
@@ -61,7 +70,7 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
 
             if (_PSF_EntityIsTrue(cond_e))
             {
-                mod_t *body_mod = SF_CreateModule(MODULE_TYPE_FILE, NULL);
+                mod_t *body_mod = SF_CreateModule(mod->type, NULL);
                 body_mod->parent = mod;
                 OSF_Free(BODY(body_mod)->body);
                 BODY(body_mod)->body = curr.v.if_stmt.body;
@@ -88,7 +97,7 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
 
                     if (_PSF_EntityIsTrue(_ce))
                     {
-                        mod_t *body_mod = SF_CreateModule(MODULE_TYPE_FILE, NULL);
+                        mod_t *body_mod = SF_CreateModule(mod->type, NULL);
                         body_mod->parent = mod;
                         OSF_Free(BODY(body_mod)->body);
                         BODY(body_mod)->body = c.body;
@@ -111,7 +120,7 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                 {
                     if (curr.v.if_stmt.else_stmt != NULL)
                     {
-                        mod_t *body_mod = SF_CreateModule(MODULE_TYPE_FILE, NULL);
+                        mod_t *body_mod = SF_CreateModule(mod->type, NULL);
                         body_mod->parent = mod;
                         OSF_Free(BODY(body_mod)->body);
                         BODY(body_mod)->body = curr.v.if_stmt.else_stmt->body;
@@ -132,7 +141,7 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
         case STATEMENT_TYPE_WHILE:
         {
             expr_t cond_r = IPSF_ReduceExpr_toConstant(mod, *(curr.v.while_stmt.condition));
-            mod_t *w_mod = SF_CreateModule(MODULE_TYPE_FILE, NULL);
+            mod_t *w_mod = SF_CreateModule(mod->type, NULL);
             w_mod->parent = mod;
             OSF_Free(BODY(w_mod)->body);
 
@@ -163,7 +172,7 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
         {
             expr_t cond_red = IPSF_ReduceExpr_toConstant(mod, *(curr.v.for_stmt.condition));
 
-            mod_t *f_mod = SF_CreateModule(MODULE_TYPE_FILE, NULL);
+            mod_t *f_mod = SF_CreateModule(mod->type, NULL);
             f_mod->parent = mod;
             OSF_Free(BODY(f_mod)->body);
 
@@ -171,16 +180,16 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
             {
             case CONSTANT_TYPE_ARRAY:
             {
-                for (size_t j = 0; j < cond_red.v.constant.Array.len; j++)
+                for (size_t j = 0; j < ARRAY(cond_red.v.constant.Array.index).len; j++)
                 {
-                    expr_t idx_val = cond_red.v.constant.Array.vals[j];
+                    expr_t idx_val = ARRAY(cond_red.v.constant.Array.index).vals[j];
 
                     switch (idx_val.v.constant.constant_type)
                     {
                     case CONSTANT_TYPE_ARRAY:
                     {
-                        expr_t *arr_ref = idx_val.v.constant.Array.vals;
-                        int sz_ref = idx_val.v.constant.Array.len;
+                        expr_t *arr_ref = ARRAY(idx_val.v.constant.Array.index).vals;
+                        int sz_ref = ARRAY(idx_val.v.constant.Array.index).len;
 
                         if (curr.v.for_stmt.var_size == sz_ref)
                         {
@@ -285,7 +294,7 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
 
             int cond_iters = cond_tok.v.constant.Int.value;
 
-            mod_t *body_mod = SF_CreateModule(MODULE_TYPE_FILE, NULL);
+            mod_t *body_mod = SF_CreateModule(mod->type, NULL);
             body_mod->parent = mod;
             OSF_Free(BODY(body_mod)->body);
 
@@ -315,10 +324,11 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
             _fdef.v.Coded.body_size = curr.v.function_decl.body_size;
 
             int f_idx = PSG_AddFunction(_fdef);
+            *RET = (expr_t){.type = EXPR_TYPE_FUNCTION, .v.function_s = {.index = f_idx, .name = (char *)fname}};
 
             if (fname != NULL)
             {
-                _IPSF_AddVar_toModule(mod, (char *)fname, (expr_t){.type = EXPR_TYPE_FUNCTION, .v.function_s = {.index = f_idx, .name = (char *)fname}});
+                _IPSF_AddVar_toModule(mod, (char *)fname, *RET);
             }
         }
         break;
@@ -346,13 +356,13 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                         return NULL;
 
                 int _cdef_idx = PSG_AddClass(_cdef);
-                expr_t _r = (expr_t){
+                *RET = (expr_t){
                     .type = EXPR_TYPE_CLASS,
                     .v = {
                         .class_expr = {
                             .index = _cdef_idx}}};
 
-                _IPSF_AddVar_toModule(mod, (char *)cname, _r);
+                _IPSF_AddVar_toModule(mod, (char *)cname, *RET);
             }
         }
         break;
@@ -362,7 +372,7 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
 
             if (mod->returns == NULL)
                 mod->returns = OSF_Malloc(sizeof(expr_t));
-            
+
             *(mod->returns) = IPSF_ReduceExpr_toConstant(mod, *(curr.v.return_stmt.expr));
         }
         break;
@@ -397,14 +407,13 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
         case CONSTANT_TYPE_ARRAY:
         {
             // DO NOT FREE
-            expr_t *cpy_vals = expr->v.constant.Array.vals;
+            expr_t *cpy_vals = ARRAY(expr->v.constant.Array.index).vals;
+            expr_t *cpy_reds = OSF_Malloc(ARRAY(expr->v.constant.Array.index).len * sizeof(expr_t));
 
-            ex_cpy.v.constant.Array.vals = OSF_Malloc(ex_cpy.v.constant.Array.len * sizeof(expr_t));
-
-            for (size_t j = 0; j < ex_cpy.v.constant.Array.len; j++)
-                ex_cpy.v.constant.Array.vals[j] = cpy_vals[j];
-            for (size_t j = 0; j < ex_cpy.v.constant.Array.len; j++)
-                ex_cpy.v.constant.Array.vals[j] = IPSF_ReduceExpr_toConstant(mod, ex_cpy.v.constant.Array.vals[j]);
+            for (size_t j = 0; j < ARRAY(expr->v.constant.Array.index).len; j++)
+                cpy_reds[j] = IPSF_ReduceExpr_toConstant(mod, cpy_vals[j]);
+            
+            ex_cpy.v.constant.Array.index = PSG_AddArray(Sf_Array_New_fromExpr(cpy_reds, ARRAY(expr->v.constant.Array.index).len));
         }
         break;
 
@@ -442,9 +451,26 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
 
             fun_t fun_s = (*PSG_GetFunctions())[get_f.v.function_s.index];
 
-            expr_t *f_res = _IPSF_CallFunction(fun_s, expr->v.function_call.args, expr->v.function_call.arg_size, mod);
+            expr_t *f_args = OSF_Malloc((expr->v.function_call.arg_size) * sizeof(expr_t));
+            int fa_beg = 0;
+
+            if (OSF_MemorySafeToFree(get_f.next)) // If it was OSF_Mallocated, this condition would be true
+            {
+                f_args = OSF_Realloc(f_args, (expr->v.function_call.arg_size + 1) * sizeof(expr_t));
+                f_args[fa_beg++] = *(get_f.next);
+            }
+
+            for (size_t j = 0; j < expr->v.function_call.arg_size; j++)
+            {
+                f_args[j + fa_beg] = expr->v.function_call.args[j];
+            }
+            fa_beg += expr->v.function_call.arg_size;
+
+            expr_t *f_res = _IPSF_CallFunction(fun_s, f_args, fa_beg, mod);
             *RES = *f_res;
             OSF_Free(f_res);
+
+            OSF_Free(f_args);
         }
         // printf("[y]"); OSF_PrintHeapSize(); printf("\n");
         break;
@@ -463,7 +489,7 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
             class_t inst_c;
             inst_c.is_native = cref.is_native;
             inst_c.mod = SF_ModuleCopy(cref.mod);
-            inst_c.name = strdup(cref.name);
+            inst_c.name = OSF_strdup(cref.name);
             inst_c.object_count = 0;
             inst_c.killed = 0;
 
@@ -524,9 +550,7 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
         if (lhs->type == EXPR_TYPE_VARIABLE)
         {
             struct __mod_child_varhold_s *lhs_val = IPSF_GetVar_fromMod(mod, lhs->v.variable.name, err);
-            if (err != NULL)
-                if (*err != IPSF_OK)
-                    return NULL;
+            assert(lhs_val != NULL && SF_FMT("Variable does not exist."));
 
             (*lhs_val).val = IPSF_ReduceExpr_toConstant(mod, *rhs);
             *RES = (expr_t){
@@ -685,6 +709,7 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
         // Array
         sres.type = EXPR_TYPE_CONSTANT;
         sres.v.constant.constant_type = CONSTANT_TYPE_ARRAY;
+        sres.v.constant.Array.index = PSG_AddArray(Sf_Array_New());
 
         int has_step = expr->v.to_step_clause._step != NULL;
         int step_count = 1;
@@ -711,19 +736,16 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
               rhs_red.v.constant.constant_type == CONSTANT_TYPE_INT) &&
              SF_FMT("Error: Entities for to..step clause must be integers")));
 
-        sres.v.constant.Array.vals = OSF_Malloc(sizeof(expr_t));
-        sres.v.constant.Array.len = 0;
-
         for (int j = lhs_red.v.constant.Int.value;
              j < rhs_red.v.constant.Int.value;
              j += step_count)
         {
-            if (sres.v.constant.Array.len)
-                sres.v.constant.Array.vals = OSF_Realloc(
-                    sres.v.constant.Array.vals,
-                    (sres.v.constant.Array.len + 1) *
+            if (ARRAY(sres.v.constant.Array.index).len)
+                ARRAY(sres.v.constant.Array.index).vals = OSF_Realloc(
+                    ARRAY(sres.v.constant.Array.index).vals,
+                    (ARRAY(sres.v.constant.Array.index).len + 1) *
                         sizeof(expr_t));
-            sres.v.constant.Array.vals[sres.v.constant.Array.len++] = (expr_t){
+            ARRAY(sres.v.constant.Array.index).vals[(PSG_GetArray_Ptr(sres.v.constant.Array.index)->len)++] = (expr_t){
                 .type = EXPR_TYPE_CONSTANT,
                 .v.constant = {
                     .constant_type = CONSTANT_TYPE_INT,
@@ -752,14 +774,14 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
             assert(
                 (
                     _index_red.v.constant.Int.value <
-                    _entity_red.v.constant.Array.len) &&
+                    ARRAY(_entity_red.v.constant.Array.index).len) &&
                 SF_FMT("Error: Array index out of range"));
 
             if (_index_red.v.constant.Int.value < 0)
                 _index_red.v.constant.Int.value +=
-                    _entity_red.v.constant.Array.len;
+                    ARRAY(_entity_red.v.constant.Array.index).len;
 
-            _fres = _entity_red.v.constant.Array.vals[_index_red.v.constant.Int.value];
+            _fres = ARRAY(_entity_red.v.constant.Array.index).vals[_index_red.v.constant.Int.value];
         }
         break;
 
@@ -775,12 +797,11 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
         expr_t res;
         res.type = EXPR_TYPE_CONSTANT;
         res.v.constant.constant_type = CONSTANT_TYPE_ARRAY;
-        res.v.constant.Array.len = 0;
-        res.v.constant.Array.vals = OSF_Malloc(sizeof(expr_t));
+        res.v.constant.Array.index = PSG_AddArray(Sf_Array_New());
 
         expr_t cond_red = IPSF_ReduceExpr_toConstant(mod, *(expr->v.inline_for.condition));
 
-        mod_t *f_mod = SF_CreateModule(MODULE_TYPE_FILE, NULL);
+        mod_t *f_mod = SF_CreateModule(mod->type, NULL);
         f_mod->parent = mod;
         OSF_Free(BODY(f_mod)->body);
         var_t *expr_vars = (var_t *)expr->v.inline_for.vars;
@@ -789,16 +810,16 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
         {
         case CONSTANT_TYPE_ARRAY:
         {
-            for (size_t j = 0; j < cond_red.v.constant.Array.len; j++)
+            for (size_t j = 0; j < ARRAY(cond_red.v.constant.Array.index).len; j++)
             {
-                expr_t idx_val = cond_red.v.constant.Array.vals[j];
+                expr_t idx_val = ARRAY(cond_red.v.constant.Array.index).vals[j];
 
                 switch (idx_val.v.constant.constant_type)
                 {
                 case CONSTANT_TYPE_ARRAY:
                 {
-                    expr_t *arr_ref = idx_val.v.constant.Array.vals;
-                    int sz_ref = idx_val.v.constant.Array.len;
+                    expr_t *arr_ref = ARRAY(idx_val.v.constant.Array.index).vals;
+                    int sz_ref = ARRAY(idx_val.v.constant.Array.index).len;
 
                     if (expr->v.inline_for.var_size == sz_ref)
                     {
@@ -872,13 +893,13 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
 
                 expr_t _ex_res = IPSF_ReduceExpr_toConstant(f_mod, *(expr->v.inline_for.body));
 
-                if (res.v.constant.Array.len)
-                    res.v.constant.Array.vals = OSF_Realloc(
-                        res.v.constant.Array.vals,
-                        (res.v.constant.Array.len + 1) *
+                if (ARRAY(res.v.constant.Array.index).len)
+                    ARRAY(res.v.constant.Array.index).vals = OSF_Realloc(
+                        ARRAY(res.v.constant.Array.index).vals,
+                        (ARRAY(res.v.constant.Array.index).len + 1) *
                             sizeof(expr_t));
 
-                res.v.constant.Array.vals[res.v.constant.Array.len++] = _ex_res;
+                ARRAY(res.v.constant.Array.index).vals[(PSG_GetArray_Ptr(res.v.constant.Array.index)->len)++] = _ex_res;
 
                 SF_Module_safeDelete(f_mod);
                 f_mod->var_holds = OSF_Malloc(sizeof(var_t));
@@ -901,10 +922,9 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
         expr_t res;
         res.type = EXPR_TYPE_CONSTANT;
         res.v.constant.constant_type = CONSTANT_TYPE_ARRAY;
-        res.v.constant.Array.len = 0;
-        res.v.constant.Array.vals = OSF_Malloc(sizeof(expr_t));
+        res.v.constant.Array.index = PSG_AddArray(Sf_Array_New());
 
-        mod_t *w_mod = SF_CreateModule(MODULE_TYPE_FILE, NULL);
+        mod_t *w_mod = SF_CreateModule(mod->type, NULL);
         w_mod->parent = mod;
         OSF_Free(BODY(w_mod)->body);
         var_t *wexpr_vars = (var_t *)expr->v.then_while.withs;
@@ -926,10 +946,10 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
         {
             expr_t _eres = IPSF_ReduceExpr_toConstant(w_mod, *(expr->v.then_while.body));
 
-            if (res.v.constant.Array.len)
-                res.v.constant.Array.vals = OSF_Realloc(res.v.constant.Array.vals, (res.v.constant.Array.len + 1) * sizeof(expr_t));
+            if (ARRAY(res.v.constant.Array.index).len)
+                ARRAY(res.v.constant.Array.index).vals = OSF_Realloc(ARRAY(res.v.constant.Array.index).vals, (ARRAY(res.v.constant.Array.index).len + 1) * sizeof(expr_t));
 
-            res.v.constant.Array.vals[res.v.constant.Array.len++] = _eres;
+            ARRAY(res.v.constant.Array.index).vals[(PSG_GetArray_Ptr(res.v.constant.Array.index)->len)++] = _eres;
 
             for (size_t j = 0; j < tev_size; j++)
             {
@@ -955,8 +975,7 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
 
         res.type = EXPR_TYPE_CONSTANT;
         res.v.constant.constant_type = CONSTANT_TYPE_ARRAY;
-        res.v.constant.Array.len = 0;
-        res.v.constant.Array.vals = OSF_Malloc(sizeof(expr_t));
+        res.v.constant.Array.index = PSG_AddArray(Sf_Array_New());
 
         assert(
             (
@@ -970,10 +989,10 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
         {
             expr_t _res = IPSF_ReduceExpr_toConstant(mod, *(expr->v.inline_repeat.body));
 
-            if (res.v.constant.Array.len)
-                res.v.constant.Array.vals = OSF_Realloc(res.v.constant.Array.vals, (res.v.constant.Array.len + 1) * sizeof(expr_t));
+            if (ARRAY(res.v.constant.Array.index).len)
+                ARRAY(res.v.constant.Array.index).vals = OSF_Realloc(ARRAY(res.v.constant.Array.index).vals, (ARRAY(res.v.constant.Array.index).len + 1) * sizeof(expr_t));
 
-            res.v.constant.Array.vals[res.v.constant.Array.len++] = _res;
+            ARRAY(res.v.constant.Array.index).vals[(PSG_GetArray_Ptr(res.v.constant.Array.index)->len)++] = _res;
         }
 
         *RES = res;
@@ -1011,9 +1030,19 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
 
                 assert(ef != IPSF_ERR_VAR_NOT_FOUND && SF_FMT("Error: Object has no member %s."));
                 _res = _v_ref->val;
+                _res.next = OSF_Malloc(sizeof(expr_t));
+                *(_res.next) = _red;
             }
             else
-                goto _label_mem_access_fallback;
+            {
+                var_t *gv = GetDtypePrototype_fromSymbolAndType(_red.v.constant.constant_type, expr->v.member_access.child);
+                assert(gv != NULL && SF_FMT("Error: Object has no member '%s'."));
+
+                _res = gv->val;
+                _res.next = OSF_Malloc(sizeof(expr_t));
+                *(_res.next) = _red;
+                // goto _label_mem_access_fallback;
+            }
         }
         break;
         default:
@@ -1107,7 +1136,7 @@ IPSF_ExecVarDecl_fromStmt(mod_t *mod, stmt_t stmt, int *err)
             {
                 class_t *_ref = _IPSF_GetClass_fromIntTuple(parent_red.v.constant.ClassObj.idx);
 
-                return IPSF_ExecVarDecl_fromStmt(_ref->mod, (stmt_t){.type = STATEMENT_TYPE_VAR_DECL, .v = {.var_decl = {.name = (expr_t *)(expr_t[]){(expr_t){.type = EXPR_TYPE_VARIABLE, .v = {.variable = {.name = strdup(symbol_name)}}}}, .expr = (expr_t *)(expr_t[]){reduced_val_cpy}}}}, NULL);
+                return IPSF_ExecVarDecl_fromStmt(_ref->mod, (stmt_t){.type = STATEMENT_TYPE_VAR_DECL, .v = {.var_decl = {.name = (expr_t *)(expr_t[]){(expr_t){.type = EXPR_TYPE_VARIABLE, .v = {.variable = {.name = OSF_strdup(symbol_name)}}}}, .expr = (expr_t *)(expr_t[]){reduced_val_cpy}}}}, NULL);
             }
             break;
 
@@ -1214,6 +1243,8 @@ int _IPSF_IsDataType_None(expr_t expr)
 char *_IPSF_ObjectRepr(expr_t expr, int recur)
 {
     char *_Res;
+    int dy = 0;
+
     switch (expr.type)
     {
     case EXPR_TYPE_CONSTANT:
@@ -1223,18 +1254,21 @@ char *_IPSF_ObjectRepr(expr_t expr, int recur)
         case CONSTANT_TYPE_BOOL:
         {
             _Res = OSF_Malloc(6 * sizeof(char));
+            dy = 1;
             sprintf(_Res, expr.v.constant.Bool.value ? "True" : "False");
         }
         break;
         case CONSTANT_TYPE_INT:
         {
             _Res = OSF_Malloc(256 * sizeof(char));
+            dy = 1;
             sprintf(_Res, "%d", expr.v.constant.Int.value);
         }
         break;
         case CONSTANT_TYPE_FLOAT:
         {
             _Res = OSF_Malloc(256 * sizeof(char));
+            dy = 1;
             sprintf(_Res, "%f", expr.v.constant.Float.value);
         }
         break;
@@ -1242,6 +1276,7 @@ char *_IPSF_ObjectRepr(expr_t expr, int recur)
         {
             _Res = OSF_Malloc(strlen(expr.v.constant.String.value) * sizeof(char));
             *_Res = '\0';
+            dy = 1;
             for (size_t j = recur ? 0 : 1; j < strlen(expr.v.constant.String.value) - (recur ? 0 : 1); j++)
                 strcat(_Res, (char[]){expr.v.constant.String.value[j], '\0'});
         }
@@ -1251,12 +1286,13 @@ char *_IPSF_ObjectRepr(expr_t expr, int recur)
             _Res = OSF_Malloc(2 * sizeof(char));
             *_Res = '[';
             *(_Res + 1) = '\0';
-            for (size_t j = 0; j < expr.v.constant.Array.len; j++)
+            dy = 1;
+            for (size_t j = 0; j < ARRAY(expr.v.constant.Array.index).len; j++)
             {
-                char *_cop = _IPSF_ObjectRepr(expr.v.constant.Array.vals[j], 1);
+                char *_cop = _IPSF_ObjectRepr(ARRAY(expr.v.constant.Array.index).vals[j], 1);
                 _Res = OSF_Realloc(_Res, (strlen(_Res) + strlen(_cop) + 4) * sizeof(char));
                 sprintf(_Res, "%s%s", _Res, _cop);
-                if (j != expr.v.constant.Array.len - 1)
+                if (j != (ARRAY(expr.v.constant.Array.index).len) - 1)
                     strcat(_Res, ", ");
             }
             strcat(_Res, "]");
@@ -1269,12 +1305,14 @@ char *_IPSF_ObjectRepr(expr_t expr, int recur)
             case DATA_TYPE_NONE:
             {
                 _Res = OSF_Malloc(5 * sizeof(char));
+                dy = 1;
                 sprintf(_Res, "None");
             }
             break;
             case DATA_TYPE_VOID:
             {
                 _Res = OSF_Malloc(7 * sizeof(char));
+                dy = 1;
                 sprintf(_Res, "<void>");
             }
             break;
@@ -1290,6 +1328,7 @@ char *_IPSF_ObjectRepr(expr_t expr, int recur)
             if (g_c.name != NULL)
             {
                 _Res = OSF_Malloc((13 + strlen(g_c.name)) * sizeof(char));
+                dy = 1;
                 sprintf(_Res, "<class '%s'>", g_c.name);
             }
             else
@@ -1305,6 +1344,7 @@ char *_IPSF_ObjectRepr(expr_t expr, int recur)
     case EXPR_TYPE_CLASS:
     {
         _Res = OSF_Malloc((13 + strlen((*PSG_GetClasses())[expr.v.class_expr.index].name)) * sizeof(char));
+        dy = 1;
         sprintf(_Res, "<class '%s'>", (*PSG_GetClasses())[expr.v.class_expr.index].name);
     }
     break;
@@ -1313,6 +1353,7 @@ char *_IPSF_ObjectRepr(expr_t expr, int recur)
         if ((*PSG_GetFunctions())[expr.v.function_s.index].name != NULL)
         {
             _Res = OSF_Malloc((16 + strlen((*PSG_GetFunctions())[expr.v.function_s.index].name)) * sizeof(char));
+            dy = 1;
             sprintf(_Res, "<function '%s'>", (*PSG_GetFunctions())[expr.v.function_s.index].name);
         }
         else
@@ -1324,7 +1365,12 @@ char *_IPSF_ObjectRepr(expr_t expr, int recur)
         break;
     }
 
-    return _Res;
+    char *rr = OSF_strdup(_Res != NULL ? _Res : "<seg_fault_i342>");
+
+    if (dy)
+        OSF_IntFree(_Res);
+
+    return rr;
 }
 
 var_t *_IPSF_AddVar_toModule(mod_t *mod, char *name, expr_t val)
@@ -1573,8 +1619,8 @@ expr_t _IPSF_ExecUnaryArithmetic(mod_t *mod, expr_t *expr)
             expr_t r;
             r.type = EXPR_TYPE_CONSTANT;
 
-            double RES_LHS = 0,
-                   RES_RHS = 0;
+            void *RES_LHS = NULL,
+                 *RES_RHS = NULL;
 
             if (ops[operator_count] == UNARY_OP_MUL)
             {
@@ -1591,14 +1637,14 @@ expr_t _IPSF_ExecUnaryArithmetic(mod_t *mod, expr_t *expr)
                             {
                             case CONSTANT_TYPE_INT:
                             {
-                                RES_LHS = lhs.v.constant.Int.value;
-                                RES_RHS = rhs.v.constant.Int.value;
+                                RES_LHS = (double *)(double[]){lhs.v.constant.Int.value};
+                                RES_RHS = (double *)(double[]){rhs.v.constant.Int.value};
                             }
                             break;
                             case CONSTANT_TYPE_FLOAT:
                             {
-                                RES_LHS = lhs.v.constant.Float.value;
-                                RES_RHS = rhs.v.constant.Float.value;
+                                RES_LHS = (double *)(double[]){lhs.v.constant.Float.value};
+                                RES_RHS = (double *)(double[]){rhs.v.constant.Float.value};
                             }
                             break;
 
@@ -1616,8 +1662,17 @@ expr_t _IPSF_ExecUnaryArithmetic(mod_t *mod, expr_t *expr)
                             {
                                 r.v.constant.constant_type = CONSTANT_TYPE_FLOAT;
 
-                                RES_LHS = lhs.v.constant.constant_type == CONSTANT_TYPE_INT ? lhs.v.constant.Int.value : lhs.v.constant.Float.value;
-                                RES_RHS = rhs.v.constant.constant_type == CONSTANT_TYPE_INT ? rhs.v.constant.Int.value : rhs.v.constant.Float.value;
+                                RES_LHS = (double *)(double[]){lhs.v.constant.constant_type == CONSTANT_TYPE_INT ? lhs.v.constant.Int.value : lhs.v.constant.Float.value};
+                                RES_RHS = (double *)(double[]){rhs.v.constant.constant_type == CONSTANT_TYPE_INT ? rhs.v.constant.Int.value : rhs.v.constant.Float.value};
+                            }
+                            else if (
+                                lhs.v.constant.constant_type == CONSTANT_TYPE_STRING ||
+                                lhs.v.constant.constant_type == CONSTANT_TYPE_INT)
+                            {
+                                r.v.constant.constant_type = CONSTANT_TYPE_STRING;
+
+                                RES_LHS = (char *)lhs.v.constant.String.value;
+                                RES_RHS = (double *)(double[]){rhs.v.constant.Int.value};
                             }
                         }
                     }
@@ -1631,11 +1686,34 @@ expr_t _IPSF_ExecUnaryArithmetic(mod_t *mod, expr_t *expr)
                 switch (r.v.constant.constant_type)
                 {
                 case CONSTANT_TYPE_INT:
-                    r.v.constant.Int.value = RES_LHS * RES_RHS;
+                    r.v.constant.Int.value = (*(double *)RES_LHS) * (*(double *)RES_RHS);
                     break;
                 case CONSTANT_TYPE_FLOAT:
-                    r.v.constant.Float.value = RES_LHS * RES_RHS;
+                    r.v.constant.Float.value = (*(double *)RES_LHS) * (*(double *)RES_RHS);
                     break;
+                case CONSTANT_TYPE_STRING:
+                {
+                    int ic = *(double *)RES_RHS;
+                    if (ic < 1)
+                    {
+                        r.v.constant.String.value = "\'\'";
+                    }
+                    else
+                    {
+                        char *_res_char = OSF_Malloc((strlen((char *)RES_LHS) * ic) * sizeof(char));
+                        strcpy(_res_char, "\'");
+                        while (ic)
+                        {
+                            strcat(_res_char, SF_STRING((char *)RES_LHS));
+                            ic--;
+                        }
+                        strcat(_res_char, "\'");
+                        char *_r_c_cpy = strdup(_res_char);
+                        OSF_Free(_res_char);
+                        r.v.constant.String.value = _r_c_cpy;
+                    }
+                }
+                break;
                 default:
                     break;
                 }
@@ -1726,9 +1804,10 @@ expr_t _IPSF_ExecUnaryArithmetic(mod_t *mod, expr_t *expr)
 
             expr_t r;
             r.type = EXPR_TYPE_CONSTANT;
+            r.v.constant.constant_type = -1;
 
-            double RES_LHS = 0,
-                   RES_RHS = 0;
+            void *RES_LHS = NULL,
+                 *RES_RHS = NULL;
 
             if (ops[operator_count] == UNARY_OP_ADD)
             {
@@ -1745,17 +1824,22 @@ expr_t _IPSF_ExecUnaryArithmetic(mod_t *mod, expr_t *expr)
                             {
                             case CONSTANT_TYPE_INT:
                             {
-                                RES_LHS = lhs.v.constant.Int.value;
-                                RES_RHS = rhs.v.constant.Int.value;
+                                RES_LHS = (double *)(double[]){lhs.v.constant.Int.value};
+                                RES_RHS = (double *)(double[]){rhs.v.constant.Int.value};
                             }
                             break;
                             case CONSTANT_TYPE_FLOAT:
                             {
-                                RES_LHS = lhs.v.constant.Float.value;
-                                RES_RHS = rhs.v.constant.Float.value;
+                                RES_LHS = (double *)(double[]){lhs.v.constant.Float.value};
+                                RES_RHS = (double *)(double[]){rhs.v.constant.Float.value};
                             }
                             break;
-
+                            case CONSTANT_TYPE_STRING:
+                            {
+                                RES_LHS = (char *)lhs.v.constant.String.value;
+                                RES_RHS = (char *)rhs.v.constant.String.value;
+                            }
+                            break;
                             default:
                                 break;
                             }
@@ -1770,8 +1854,8 @@ expr_t _IPSF_ExecUnaryArithmetic(mod_t *mod, expr_t *expr)
                             {
                                 r.v.constant.constant_type = CONSTANT_TYPE_FLOAT;
 
-                                RES_LHS = lhs.v.constant.constant_type == CONSTANT_TYPE_INT ? lhs.v.constant.Int.value : lhs.v.constant.Float.value;
-                                RES_RHS = rhs.v.constant.constant_type == CONSTANT_TYPE_INT ? rhs.v.constant.Int.value : rhs.v.constant.Float.value;
+                                RES_LHS = (double *)(double[]){lhs.v.constant.constant_type == CONSTANT_TYPE_INT ? lhs.v.constant.Int.value : lhs.v.constant.Float.value};
+                                RES_RHS = (double *)(double[]){rhs.v.constant.constant_type == CONSTANT_TYPE_INT ? rhs.v.constant.Int.value : rhs.v.constant.Float.value};
                             }
                         }
                     }
@@ -1785,12 +1869,22 @@ expr_t _IPSF_ExecUnaryArithmetic(mod_t *mod, expr_t *expr)
                 switch (r.v.constant.constant_type)
                 {
                 case CONSTANT_TYPE_INT:
-                    r.v.constant.Int.value = RES_LHS + RES_RHS;
+                    r.v.constant.Int.value = *(double *)RES_LHS + *(double *)RES_RHS;
                     break;
                 case CONSTANT_TYPE_FLOAT:
-                    r.v.constant.Float.value = RES_LHS + RES_RHS;
+                    r.v.constant.Float.value = *(double *)RES_LHS + *(double *)RES_RHS;
                     break;
+                case CONSTANT_TYPE_STRING:
+                {
+                    r.v.constant.String.value = OSF_Malloc((strlen((char *)RES_LHS) + strlen((char *)RES_RHS) + 1) * sizeof(char));
+                    RES_RHS++;
+                    ((char *)RES_LHS)[strlen(((char *)RES_LHS)) - 1] = '\0';
+                    sprintf(r.v.constant.String.value, "%s%s", RES_LHS, RES_RHS);
+                }
+                break;
+                case -1:
                 default:
+                    assert(0 && SF_FMT("Error: Invalid operator usage: `+'."));
                     break;
                 }
 
@@ -1929,17 +2023,9 @@ expr_t *_IPSF_CallFunction(fun_t fun_s, expr_t *args, int arg_size, mod_t *mod)
     expr_t *_cargs_without_voids;
     int _cargs_without_voids_size = 0;
 
-    fun_mod->parent = mod;
-    for (size_t j = 0; j < arg_size; j++)
-    {
-        expr_t temp = IPSF_ReduceExpr_toConstant(fun_mod, args[j]);
-
-        // if (!_IPSF_IsDataType_Void(temp))
-        _collectivise_args[_collectivise_args_count++] = temp;
-    }
-
     if (fun_s.is_native)
     {
+        fun_mod->parent = NULL;
         for (size_t j = 0; j < fun_s.v.Native.arg_size; j++)
         {
             expr_t *texpr = OSF_Malloc(sizeof(expr_t));
@@ -1971,6 +2057,7 @@ expr_t *_IPSF_CallFunction(fun_t fun_s, expr_t *args, int arg_size, mod_t *mod)
 
             OSF_Free(texpr);
         }
+        fun_mod->parent = mod;
     }
     else
     {
@@ -1980,6 +2067,15 @@ expr_t *_IPSF_CallFunction(fun_t fun_s, expr_t *args, int arg_size, mod_t *mod)
             _IPSF_AddVar_toModule(fun_mod, fun_s.v.Coded.args[j].name, fun_s.v.Coded.args[j].val);
         }
         fun_mod->parent = mod;
+    }
+
+    fun_mod->parent = mod;
+    for (size_t j = 0; j < arg_size; j++)
+    {
+        expr_t temp = IPSF_ReduceExpr_toConstant(fun_mod, args[j]);
+
+        // if (!_IPSF_IsDataType_Void(temp))
+        _collectivise_args[_collectivise_args_count++] = temp;
     }
 
     _cargs_without_voids = _PSF_RemoveVoidsFromExprArray(_collectivise_args, _collectivise_args_count, &_cargs_without_voids_size);
@@ -2007,8 +2103,7 @@ expr_t *_IPSF_CallFunction(fun_t fun_s, expr_t *args, int arg_size, mod_t *mod)
                 .constant = {
                     .constant_type = CONSTANT_TYPE_ARRAY,
                     .Array = {
-                        .len = _cargs_without_voids_size,
-                        .vals = _cargs_without_voids}}}};
+                        .index = PSG_AddArray(Sf_Array_New_fromExpr(_cargs_without_voids, _cargs_without_voids_size))}}}};
 
         first_void_ref = NULL;
     }

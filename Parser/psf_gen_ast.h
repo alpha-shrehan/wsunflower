@@ -141,4 +141,4 @@ psf_byte_array_t *_PSF_newByteArray(void);
  * @param _str String
  * @return char* 
  */
-char *_PSF_TrimSFStrImp(char *) __attribute__((deprecated));
+char *_PSF_TrimSFStrImp(char *);

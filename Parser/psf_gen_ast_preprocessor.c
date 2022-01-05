@@ -46,7 +46,7 @@ void PSF_AST_Preprocess_fromByteArray(psf_byte_array_t *_AST)
                 if (!strcmp(_AST->nodes[i].v.Identifier.val, PSF_ValidDataTypes[j++]))
                 {
                     char *ccpy = _AST->nodes[i].v.Identifier.val;
-                    _AST->nodes[i].v.DataType.val = (char *)strdup(ccpy);
+                    _AST->nodes[i].v.DataType.val = (char *)OSF_strdup(ccpy);
                     OSF_Free(ccpy);
                     _AST->nodes[i].nval_type = AST_NVAL_TYPE_DATA_TYPE;
                 }

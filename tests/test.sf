@@ -1,11 +1,1 @@
-class List
-    _v = []
-
-    fun __main__(self, _it)
-        self._v = [_it]
-    
-    fun __str__(self)
-        return self._v
-
-x = List(1)
-write(x)
+write([x, x * x] for x in 1 to 10)

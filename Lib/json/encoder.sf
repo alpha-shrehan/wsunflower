@@ -1,0 +1,12 @@
+# Converts Sunflower dictionary to string
+
+class Encoder
+    fun __main__(self)
+        return None
+
+    fun encode(self, d)
+        res = "{"
+        for i, j in d.items():
+            res += "\"" + i + "\":\"" + j + "\","
+        res[len(res) - 1] = "}"
+        return res

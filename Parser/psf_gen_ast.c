@@ -140,7 +140,7 @@ psf_byte_array_t *_PSF_New_AST_FromString(const char *src)
             identifier[identifier_len] = (c = '\0');
             identifier_len++;
 
-            PSF_AST_ByteArray_AddNode(ast, (psf_byte_t){.nval_type = AST_NVAL_TYPE_IDENTIFIER, .v = {.Identifier.val = (char *)strdup(identifier), .Identifier.is_token = 0}});
+            PSF_AST_ByteArray_AddNode(ast, (psf_byte_t){.nval_type = AST_NVAL_TYPE_IDENTIFIER, .v = {.Identifier.val = (char *)OSF_strdup(identifier), .Identifier.is_token = 0}});
 
             OSF_Free(identifier);
             identifier = NULL;
@@ -163,7 +163,7 @@ psf_byte_array_t *_PSF_New_AST_FromString(const char *src)
 
             char *res_op = _PSF_Construct_Operator_fromString(op1, op2, op3);
 
-            PSF_AST_ByteArray_AddNode(ast, (psf_byte_t){.nval_type = AST_NVAL_TYPE_OPERATOR, .v = {.Operator.val = strdup(res_op)}});
+            PSF_AST_ByteArray_AddNode(ast, (psf_byte_t){.nval_type = AST_NVAL_TYPE_OPERATOR, .v = {.Operator.val = OSF_strdup(res_op)}});
 
             i += strlen(res_op) - 1;
             OSF_Free(res_op);
@@ -301,7 +301,7 @@ psf_byte_array_t *_PSF_New_AST_FromString(const char *src)
 
             PSF_AST_ByteArray_AddNode(ast, (psf_byte_t){
                                                .nval_type = AST_NVAL_TYPE_STRING,
-                                               .v.String = {.val = (char *)strdup(str)}});
+                                               .v.String = {.val = (char *)OSF_strdup(str)}});
 
             OSF_Free(str);
             str = NULL;
@@ -397,7 +397,7 @@ char *_PSF_Construct_Operator_fromString(char op1, char op2, char op3)
         break;
     }
 
-    char *rr = strdup(res);
+    char *rr = OSF_strdup(res);
     OSF_Free(res);
     return rr;
 }
@@ -414,7 +414,7 @@ psf_byte_array_t *_PSF_newByteArray(void)
 
 char *_PSF_TrimSFStrImp(char *_str)
 {
-    char *_ccpy = _str;
+    char *_ccpy = strdup(_str);
     _ccpy++;
     _ccpy[strlen(_ccpy) - 1] = '\0';
 

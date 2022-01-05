@@ -1,0 +1,5 @@
+[log: 02-01-22]
+body loops (like if, else, while, repeat) should inherit the module 
+type rather than strict MODULE_TYPE_FILE to prevent `return' assertions.
+[ipsf_init.c:361]
+[psf_gen_inst_ast.h:506]

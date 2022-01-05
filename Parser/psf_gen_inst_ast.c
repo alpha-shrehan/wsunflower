@@ -1,9 +1,14 @@
 #include "psf_gen_inst_ast.h"
+#include "array_t.h"
 
 static fun_t *PSG_Functions;
 static int PSG_Functions_Size;
 static class_t *PSG_Classes;
 static int PSG_Classes_Size;
+static DtypeProto_t *proto_holders;
+static int proto_holders_size;
+static array_t *PSG_ArrayHolders;
+static int PSG_ArrayHolders_Count;
 
 mod_t *SF_CreateModule(enum ModuleTypeEnum mod_type, psf_byte_array_t *ast_ref)
 {
@@ -204,7 +209,7 @@ expr_t SF_FrameExpr_fromByte(psf_byte_array_t *arr)
             if (!curr.v.Identifier.is_token)
             {
                 ret.type = EXPR_TYPE_VARIABLE;
-                ret.v.variable.name = strdup(curr.v.Identifier.val);
+                ret.v.variable.name = OSF_strdup(curr.v.Identifier.val);
             }
             else
             {
@@ -300,15 +305,18 @@ expr_t SF_FrameExpr_fromByte(psf_byte_array_t *arr)
                 ret.type = EXPR_TYPE_INLINE_ASSIGNMENT;
                 psf_byte_array_t *lhs_bt_arr = _PSF_newByteArray();
                 lhs_bt_arr->nodes = (psf_byte_t *)OSF_Malloc(i * sizeof(psf_byte_t));
-                lhs_bt_arr->size = i;
-                memcpy(lhs_bt_arr->nodes, arr->nodes, i * sizeof(psf_byte_t));
+                // memcpy(lhs_bt_arr->nodes, arr->nodes, i * sizeof(psf_byte_t));
+                for (size_t j = 0; j < i; j++)
+                    PSF_AST_ByteArray_AddNode(lhs_bt_arr, arr->nodes[j]);
+
                 ret.v.inline_assignment.lhs = (expr_t *)OSF_Malloc(sizeof(expr_t));
                 *(ret.v.inline_assignment.lhs) = SF_FrameExpr_fromByte(lhs_bt_arr);
 
                 psf_byte_array_t *rhs_bt_arr = _PSF_newByteArray();
                 rhs_bt_arr->nodes = (psf_byte_t *)OSF_Malloc((arr->size - i) * sizeof(psf_byte_t));
-                rhs_bt_arr->size = arr->size - i;
-                memcpy(rhs_bt_arr->nodes, arr->nodes + i + 1, (arr->size - i) * sizeof(psf_byte_t));
+                // memcpy(rhs_bt_arr->nodes, arr->nodes + i + 1, (arr->size - i) * sizeof(psf_byte_t));
+                for (size_t j = i + 1; j < arr->size; j++)
+                    PSF_AST_ByteArray_AddNode(rhs_bt_arr, arr->nodes[j]);
                 ret.v.inline_assignment.rhs = (expr_t *)OSF_Malloc(sizeof(expr_t));
                 *(ret.v.inline_assignment.rhs) = SF_FrameExpr_fromByte(rhs_bt_arr);
                 doBreak = 1;
@@ -631,6 +639,18 @@ expr_t SF_FrameExpr_fromByte(psf_byte_array_t *arr)
                 SF_FrameIT_fromAST(temp_mod);
 
                 ret = *((*(BODY(temp_mod)->body)).v.expr.expr);
+                if (!ret.v.function_call.is_func_call)
+                {
+                    switch (ret.v.function_call.arg_size)
+                    {
+                    case 1:
+                        ret = *(ret.v.function_call.args);
+                        break;
+
+                    default:
+                        break;
+                    }
+                }
 
                 OSF_Free(BODY(temp_mod)->body);
                 OSF_Free(temp_mod->var_holds);
@@ -686,8 +706,7 @@ expr_t SF_FrameExpr_fromByte(psf_byte_array_t *arr)
                 {
                     ret.type = EXPR_TYPE_CONSTANT;
                     ret.v.constant.constant_type = CONSTANT_TYPE_ARRAY;
-                    ret.v.constant.Array.len = 0;
-                    ret.v.constant.Array.vals = OSF_Malloc(sizeof(expr_t));
+                    array_t _arr = Sf_Array_New();
 
                     psf_byte_array_t *_idx_arr = _PSF_newByteArray();
 
@@ -703,14 +722,11 @@ expr_t SF_FrameExpr_fromByte(psf_byte_array_t *arr)
                             if (!strcmp(c.v.Operator.val, "]") &&
                                 !gb)
                             {
-                                expr_t _fr_vi = SF_FrameExpr_fromByte(_idx_arr);
-                                if (ret.v.constant.Array.len)
-                                    ret.v.constant.Array.vals = OSF_Realloc(
-                                        ret.v.constant.Array.vals,
-                                        (ret.v.constant.Array.len + 1) *
-                                            sizeof(expr_t));
-
-                                ret.v.constant.Array.vals[ret.v.constant.Array.len++] = _fr_vi;
+                                if (_idx_arr->size)
+                                {
+                                    expr_t _fr_vi = SF_FrameExpr_fromByte(_idx_arr);
+                                    Sf_Array_Push(&_arr, _fr_vi);
+                                }
 
                                 OSF_Free(_idx_arr->nodes);
                                 OSF_Free(_idx_arr);
@@ -730,13 +746,7 @@ expr_t SF_FrameExpr_fromByte(psf_byte_array_t *arr)
                                 !gb)
                             {
                                 expr_t _fr_vi = SF_FrameExpr_fromByte(_idx_arr);
-                                if (ret.v.constant.Array.len)
-                                    ret.v.constant.Array.vals = OSF_Realloc(
-                                        ret.v.constant.Array.vals,
-                                        (ret.v.constant.Array.len + 1) *
-                                            sizeof(expr_t));
-
-                                ret.v.constant.Array.vals[ret.v.constant.Array.len++] = _fr_vi;
+                                Sf_Array_Push(&_arr, _fr_vi);
 
                                 OSF_Free(_idx_arr->nodes);
                                 OSF_Free(_idx_arr);
@@ -750,6 +760,8 @@ expr_t SF_FrameExpr_fromByte(psf_byte_array_t *arr)
 
                         i++;
                     }
+
+                    ret.v.constant.Array.index = PSG_AddArray(_arr);
                 }
             }
             else if (!strcmp(op, "."))
@@ -761,7 +773,7 @@ expr_t SF_FrameExpr_fromByte(psf_byte_array_t *arr)
                 assert(
                     arr->nodes[i + 1].nval_type == AST_NVAL_TYPE_IDENTIFIER &&
                     SF_FMT("Error: Member access operator (.) requires member name to be an identifier."));
-                ret.v.member_access.child = (char *)strdup(arr->nodes[i + 1].v.Identifier.val);
+                ret.v.member_access.child = (char *)OSF_strdup(arr->nodes[i + 1].v.Identifier.val);
                 i++;
             }
         }
@@ -861,13 +873,14 @@ void SF_FrameIT_fromAST(mod_t *mod)
                 {
                     if (mod->ast->nodes[j].nval_type == AST_NVAL_TYPE_OPERATOR)
                     {
-                        const char *op = strdup(mod->ast->nodes[j].v.Operator.val);
+                        const char *op = mod->ast->nodes[j].v.Operator.val;
 
                         if (!strcmp(op, ")") && !gb)
                         {
                             if (args_arr->size)
                             {
                                 expr_t arg_res = SF_FrameExpr_fromByte(args_arr);
+
                                 if (new_stmt.v.expr.expr->v.function_call.arg_size)
                                     new_stmt.v.expr.expr->v.function_call.args = (expr_t *)OSF_Realloc(
                                         new_stmt.v.expr.expr->v.function_call.args,
@@ -916,6 +929,11 @@ void SF_FrameIT_fromAST(mod_t *mod)
                     j++;
                 }
 
+                // for (size_t j = 0; j < new_stmt.v.expr.expr->v.function_call.arg_size; j++)
+                // {
+                //     PSG_PrintExprType(new_stmt.v.expr.expr->v.function_call.args[j].type);
+                // }
+
                 new_stmt.v.expr.expr->v.function_call.name = OSF_Malloc(sizeof(expr_t));
                 new_stmt.v.expr.expr->v.function_call.is_func_call = 1;
 
@@ -931,7 +949,7 @@ void SF_FrameIT_fromAST(mod_t *mod)
 
                         *(new_stmt.v.expr.expr->v.function_call.name) = (expr_t){
                             .type = EXPR_TYPE_VARIABLE,
-                            .v.variable.name = (char *)strdup(last_stmt_name)};
+                            .v.variable.name = (char *)OSF_strdup(last_stmt_name)};
                     }
                     break;
                     case STATEMENT_TYPE_EXPR:
@@ -989,7 +1007,7 @@ void SF_FrameIT_fromAST(mod_t *mod)
                 {
                 case AST_NVAL_TYPE_IDENTIFIER:
                 {
-                    new_stmt.v.expr.expr->v.member_access.child = (char *)strdup(mod->ast->nodes[i + 1].v.Identifier.val);
+                    new_stmt.v.expr.expr->v.member_access.child = (char *)OSF_strdup(mod->ast->nodes[i + 1].v.Identifier.val);
                 }
                 break;
 
@@ -1000,6 +1018,97 @@ void SF_FrameIT_fromAST(mod_t *mod)
                 BODY(mod)->body[BODY(mod)->body_size - 1] = new_stmt;
                 i++;
             }
+            else if (
+                strlen(op) == 2 &&
+                op[1] == '=' &&
+                (char *)strstr("+-*/%", (char[]){op[0], '\0'}))
+            {
+                /**
+                 * @brief Convert to assignment with lhs = var and rhs = original token
+                 */
+                psf_byte_array_t *val_arr = _PSF_newByteArray();
+                int j = i + 1;
+
+                while (mod->ast->nodes[j].nval_type != AST_NVAL_TYPE_NEWLINE && j < mod->ast->size)
+                {
+                    PSF_AST_ByteArray_AddNode(val_arr, mod->ast->nodes[j]);
+                    j++;
+                }
+
+                expr_t *val_res = (expr_t *)OSF_Malloc(sizeof(expr_t));
+                *val_res = SF_FrameExpr_fromByte(val_arr);
+
+                stmt_t new_stmt;
+                new_stmt.type = STATEMENT_TYPE_VAR_DECL;
+                new_stmt.v.var_decl.name = OSF_Malloc(sizeof(expr_t));
+
+                switch (BODY(mod)->body[BODY(mod)->body_size - 1].type)
+                {
+                case STATEMENT_TYPE_VAR_REF:
+                {
+                    *(new_stmt.v.var_decl.name) = (expr_t){
+                        .type = EXPR_TYPE_VARIABLE,
+                        .v = {
+                            .variable = {
+                                .name = BODY(mod)->body[BODY(mod)->body_size - 1].v.var_ref.name}}};
+                }
+                break;
+                case STATEMENT_TYPE_EXPR:
+                {
+                    *(new_stmt.v.var_decl.name) = *(BODY(mod)->body[BODY(mod)->body_size - 1].v.expr.expr);
+                }
+                break;
+
+                default:
+                    break;
+                }
+
+                expr_t *_e_res = OSF_Malloc(sizeof(expr_t));
+                _e_res->type = EXPR_TYPE_UNARY_ARITHMETIC_OP;
+                _e_res->v.unary_arith_op_expr.ops = OSF_Malloc(sizeof(enum ExprArithmeticOpEnum));
+                _e_res->v.unary_arith_op_expr.ops_size = 1;
+                _e_res->v.unary_arith_op_expr.order = OSF_Malloc(3 * sizeof(enum ExprArithmeticOpOrderEnum));
+                _e_res->v.unary_arith_op_expr.order_count = 3;
+                _e_res->v.unary_arith_op_expr.sibs = OSF_Malloc(2 * sizeof(expr_t));
+                _e_res->v.unary_arith_op_expr.sibs_size = 2;
+
+                switch (op[0])
+                {
+                case '+':
+                    *(_e_res->v.unary_arith_op_expr.ops) = UNARY_OP_ADD;
+                    break;
+                case '-':
+                    *(_e_res->v.unary_arith_op_expr.ops) = UNARY_OP_SUB;
+                    break;
+                case '*':
+                    *(_e_res->v.unary_arith_op_expr.ops) = UNARY_OP_MUL;
+                    break;
+                case '/':
+                    *(_e_res->v.unary_arith_op_expr.ops) = UNARY_OP_DIV;
+                    break;
+                case '%':
+                    *(_e_res->v.unary_arith_op_expr.ops) = UNARY_OP_MOD;
+                    break;
+                default:
+                    break;
+                }
+                _e_res->v.unary_arith_op_expr.order[0] = ORDER_CONSTANT;
+                _e_res->v.unary_arith_op_expr.order[1] = ORDER_OPERATOR;
+                _e_res->v.unary_arith_op_expr.order[2] = ORDER_CONSTANT;
+                _e_res->v.unary_arith_op_expr.sibs[0] = *(new_stmt.v.var_decl.name);
+                _e_res->v.unary_arith_op_expr.sibs[1] = *val_res;
+
+                new_stmt.v.var_decl.expr = _e_res;
+
+                if (BODY(mod)->body_size)
+                    BODY(mod)->body[BODY(mod)->body_size - 1] = new_stmt;
+                else
+                    PSG_AddStmt_toMod(mod, new_stmt);
+
+                OSF_Free(val_res);
+                OSF_Free(val_arr);
+                i = j;
+            }
         }
         break;
         case AST_NVAL_TYPE_IDENTIFIER:
@@ -1008,7 +1117,7 @@ void SF_FrameIT_fromAST(mod_t *mod)
             {
                 stmt_t new_stmt;
                 new_stmt.type = STATEMENT_TYPE_VAR_REF;
-                new_stmt.v.var_ref.name = (char *)strdup(curr.v.Identifier.val);
+                new_stmt.v.var_ref.name = (char *)OSF_strdup(curr.v.Identifier.val);
 
                 PSG_AddStmt_toMod(mod, new_stmt);
             }
@@ -1425,7 +1534,7 @@ void *SF_CCast_Entity(expr_t en)
             break;
         case CONSTANT_TYPE_STRING:
         {
-            char *res = (char *)strdup(en.v.constant.String.value);
+            char *res = (char *)OSF_strdup(en.v.constant.String.value);
             res[strlen(res) - 1] = '\0';
             res++;
             return (void *)(const char *)res;
@@ -1503,6 +1612,10 @@ void _PSG_EnvInit(void)
     PSG_Functions_Size = 0;
     PSG_Classes = (class_t *)OSF_Malloc(sizeof(class_t));
     PSG_Classes_Size = 0;
+    proto_holders = (DtypeProto_t *)OSF_Malloc(sizeof(DtypeProto_t));
+    proto_holders_size = 0;
+    PSG_ArrayHolders = (array_t *)OSF_Malloc(sizeof(array_t));
+    PSG_ArrayHolders_Count = 0;
 }
 
 int PSG_AddFunction(fun_t _fun)
@@ -1925,7 +2038,7 @@ var_t _PSF_GenerateVarFromByte(psf_byte_array_t *arr)
         if (c.nval_type == AST_NVAL_TYPE_IDENTIFIER &&
             !c.v.Identifier.is_token)
         {
-            res.name = strdup(c.v.Identifier.val);
+            res.name = OSF_strdup(c.v.Identifier.val);
             gb_at_varname = gb;
         }
     }
@@ -2340,7 +2453,7 @@ stmt_t _PSF_ConstructFunctionStmt(psf_byte_array_t *arr, int idx, int *bd_sz_ptr
         {
             if (name->nodes[0].nval_type == AST_NVAL_TYPE_IDENTIFIER)
             {
-                result.v.function_decl.name = strdup(name->nodes[0].v.Identifier.val);
+                result.v.function_decl.name = OSF_strdup(name->nodes[0].v.Identifier.val);
             }
         }
     }
@@ -2397,7 +2510,7 @@ stmt_t _PSF_ConstructClassStmt(psf_byte_array_t *arr, int idx, size_t *res_loc_p
     {
         if (name->nodes[0].nval_type == AST_NVAL_TYPE_IDENTIFIER)
         {
-            ret.v.class_decl.name = strdup(name->nodes[0].v.Identifier.val);
+            ret.v.class_decl.name = OSF_strdup(name->nodes[0].v.Identifier.val);
         }
     }
 
@@ -2430,6 +2543,16 @@ class_t **PSG_GetClasses(void)
 int *PSG_GetClassesSize(void)
 {
     return &PSG_Classes_Size;
+}
+
+array_t **PSG_GetArrays(void)
+{
+    return &PSG_ArrayHolders;
+}
+
+int *PSG_GetArraysSize(void)
+{
+    return &PSG_ArrayHolders_Count;
 }
 
 int PSG_AddClass(class_t _class)
@@ -2467,4 +2590,58 @@ int_tuple PSG_AddClassObject_toClass(class_t _class, int idx)
     _cref->objects[_cref->object_count++] = _class;
 
     return (int_tuple){.x1 = idx, .x2 = _cref->object_count - 1};
+}
+
+DtypeProto_t **GetDtypeProtoHolder(void)
+{
+    return &proto_holders;
+}
+
+int *GetDtypeProtoHolderSize(void)
+{
+    return &proto_holders_size;
+}
+
+int AddDtypePrototype(int type, char *name, expr_t val)
+{
+    if (*GetDtypeProtoHolderSize())
+        *GetDtypeProtoHolder() = OSF_Realloc(*GetDtypeProtoHolder(), ((*GetDtypeProtoHolderSize()) + 1) * sizeof(DtypeProto_t));
+
+    (*GetDtypeProtoHolder())[(*GetDtypeProtoHolderSize())++] = (DtypeProto_t){
+        .type = type,
+        .val = (var_t){
+            .name = name,
+            .val = val}};
+
+    return (*GetDtypeProtoHolderSize()) - 1;
+}
+
+var_t *GetDtypePrototype_fromSymbolAndType(int type, char *name)
+{
+    int ptsize = *GetDtypeProtoHolderSize();
+    DtypeProto_t *prots = *GetDtypeProtoHolder();
+
+    for (size_t i = 0; i < ptsize; i++)
+    {
+        if (prots[i].type == type &&
+            !strcmp(prots[i].val.name, name))
+            return &(prots[i].val);
+    }
+
+    return NULL;
+}
+
+int PSG_AddArray(array_t arr)
+{
+    if (*PSG_GetArraysSize())
+        (*PSG_GetArrays()) = OSF_Realloc(*PSG_GetArrays(), ((*PSG_GetArraysSize()) + 1) * sizeof(array_t));
+    
+    (*PSG_GetArrays())[*PSG_GetArraysSize()] = arr;
+
+    return (*PSG_GetArraysSize())++;
+}
+
+array_t *PSG_GetArray_Ptr(int idx)
+{
+    return &((*PSG_GetArrays())[idx]);
 }

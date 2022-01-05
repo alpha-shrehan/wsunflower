@@ -1,0 +1,37 @@
+# Converts String to Sunflower dictionary
+
+class Decoder
+    fun __main__(self)
+        return None
+    
+    fun decode(self, s)
+        s = s[1 to len(s) - 1]
+        s = s.split(',')
+        d = {}
+        s = [x.split(':', count = 1) for x in s]
+        for i in s
+            i[0] = i[0].strip()
+            i[0] = i[0][1 to len(i[0]) - 1]
+            i[1] = i[1].strip()
+            val = None
+            
+            switch i[1]
+                case 'true'
+                    val = True
+                case 'false'
+                    val = False
+                case 'null'
+                    val = None
+                case _ in ['[', '{']:
+                    val = self.decode(i[1])
+                case _ in ['"', "'"]:
+                    val = i[1][1 to len(i[1]) - 1]
+                case _.isnumber()
+                    val = int(i[1])
+                case _.isfloat():
+                    val = float(i[1])
+                case _
+                    assert False, 'Invalid value: ' + i[1]
+            
+            d[i[0]] = val
+        return d

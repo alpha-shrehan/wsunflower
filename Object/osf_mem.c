@@ -11,8 +11,8 @@ unsigned long OSF_ReallocCalled = 0;
 
 void __OSF_MemInit(const char *__fname, int __line)
 {
-    OSF_MainMemTree = (OSF_MemTree *)malloc(sizeof(OSF_MemTree));
-    OSF_MainMemTree->root = (OSF_MemBlock *)malloc(sizeof(OSF_MemBlock));
+    OSF_MainMemTree = (OSF_MemTree *)GC_MALLOC(sizeof(OSF_MemTree));
+    OSF_MainMemTree->root = (OSF_MemBlock *)GC_MALLOC(sizeof(OSF_MemBlock));
     OSF_MainMemTree->size = 0;
 
     OSF_DetermineHeapSize();
@@ -21,14 +21,13 @@ void __OSF_MemInit(const char *__fname, int __line)
 void *__OSF_Malloc(size_t size, const char *__fname, int __line)
 {
     OSF_MallocCalled++;
-    void *ptr = malloc(size);
+    void *ptr = GC_MALLOC(size);
     if (ptr == NULL)
     {
         OSF_Error("OSF_Malloc: Out of memory", __fname, __line);
     }
 
     int mem_al_exists = -1;
-
     for (size_t i = 0; i < OSF_MainMemTree->size; i++)
     {
         if (OSF_MainMemTree->root[i].addr == ptr)
@@ -50,7 +49,7 @@ void *__OSF_Malloc(size_t size, const char *__fname, int __line)
     else
     {
         if (OSF_MainMemTree->size)
-            OSF_MainMemTree->root = (OSF_MemBlock *)realloc(OSF_MainMemTree->root, sizeof(OSF_MemBlock) * (OSF_MainMemTree->size + 1));
+            OSF_MainMemTree->root = (OSF_MemBlock *)GC_REALLOC(OSF_MainMemTree->root, sizeof(OSF_MemBlock) * (OSF_MainMemTree->size + 1));
 
         OSF_MainMemTree->root[OSF_MainMemTree->size].addr = ptr;
         OSF_MainMemTree->root[OSF_MainMemTree->size].size = size;
@@ -63,7 +62,7 @@ void *__OSF_Malloc(size_t size, const char *__fname, int __line)
 
     OSF_DetermineHeapSize();
 #if __DOSF_PRINT_HEAP_TRACE__ == 1
-    fprintf(stdout, "[malloc] ");
+    fprintf(stdout, "[GC_MALLOC] ");
     OSF_PrintHeapSize();
     fprintf(stdout, " in function: %s at line %d\n", __fname, __line);
 #endif
@@ -74,7 +73,7 @@ void *__OSF_Malloc(size_t size, const char *__fname, int __line)
 void *__OSF_Realloc(void *ptr, size_t size, const char *__fname, int __line)
 {
     OSF_ReallocCalled++;
-    void *new_ptr = realloc(ptr, size);
+    void *new_ptr = GC_REALLOC(ptr, size);
     if (new_ptr == NULL)
     {
         OSF_Error("OSF_Realloc: Out of memory", __fname, __line);
@@ -110,7 +109,7 @@ void *__OSF_Realloc(void *ptr, size_t size, const char *__fname, int __line)
     if (!done)
     {
         if (OSF_MainMemTree->size)
-            OSF_MainMemTree->root = (OSF_MemBlock *)realloc(OSF_MainMemTree->root, sizeof(OSF_MemBlock) * (OSF_MainMemTree->size + 1));
+            OSF_MainMemTree->root = (OSF_MemBlock *)GC_REALLOC(OSF_MainMemTree->root, sizeof(OSF_MemBlock) * (OSF_MainMemTree->size + 1));
 
         OSF_MainMemTree->root[OSF_MainMemTree->size].addr = new_ptr;
         OSF_MainMemTree->root[OSF_MainMemTree->size].size = size;
@@ -123,8 +122,8 @@ void *__OSF_Realloc(void *ptr, size_t size, const char *__fname, int __line)
 
     if (removeEntry != -1)
     {
-        OSF_MemTree *copyOsfMemBlock = (OSF_MemTree *)malloc(sizeof(OSF_MemTree));
-        copyOsfMemBlock->root = (OSF_MemBlock *)malloc((OSF_MainMemTree->size - 1) * sizeof(OSF_MemBlock));
+        OSF_MemTree *copyOsfMemBlock = (OSF_MemTree *)GC_MALLOC(sizeof(OSF_MemTree));
+        copyOsfMemBlock->root = (OSF_MemBlock *)GC_MALLOC((OSF_MainMemTree->size - 1) * sizeof(OSF_MemBlock));
         copyOsfMemBlock->size = 0;
 
         for (size_t i = 0; i < OSF_MainMemTree->size; i++)
@@ -140,11 +139,11 @@ void *__OSF_Realloc(void *ptr, size_t size, const char *__fname, int __line)
                 .size = OSF_MainMemTree->root[i].size};
         }
 
-        free(OSF_MainMemTree->root);
-        free(OSF_MainMemTree);
+        GC_FREE(OSF_MainMemTree->root);
+        GC_FREE(OSF_MainMemTree);
 
-        OSF_MainMemTree = (OSF_MemTree *)malloc(sizeof(OSF_MemTree));
-        OSF_MainMemTree->root = (OSF_MemBlock *)malloc(copyOsfMemBlock->size * sizeof(OSF_MemBlock));
+        OSF_MainMemTree = (OSF_MemTree *)GC_MALLOC(sizeof(OSF_MemTree));
+        OSF_MainMemTree->root = (OSF_MemBlock *)GC_MALLOC(copyOsfMemBlock->size * sizeof(OSF_MemBlock));
         OSF_MainMemTree->size = copyOsfMemBlock->size;
 
         for (size_t i = 0; i < copyOsfMemBlock->size; i++)
@@ -157,9 +156,9 @@ void *__OSF_Realloc(void *ptr, size_t size, const char *__fname, int __line)
                 .size = copyOsfMemBlock->root[i].size};
         }
 
-        free(copyOsfMemBlock->root);
+        GC_FREE(copyOsfMemBlock->root);
         copyOsfMemBlock->root = NULL;
-        free(copyOsfMemBlock);
+        GC_FREE(copyOsfMemBlock);
         copyOsfMemBlock = NULL;
     }
 
@@ -170,14 +169,14 @@ void *__OSF_Realloc(void *ptr, size_t size, const char *__fname, int __line)
 
 void *__OSF_Calloc(size_t num, size_t size, const char *__fname, int __line)
 {
-    void *ptr = malloc(num * size);
+    void *ptr = GC_MALLOC(num * size);
     if (ptr == NULL)
     {
         OSF_Error("OSF_Calloc: Out of memory", __fname, __line);
     }
 
     if (OSF_MainMemTree->size)
-        OSF_MainMemTree->root = (OSF_MemBlock *)realloc(OSF_MainMemTree->root, sizeof(OSF_MemBlock) * (OSF_MainMemTree->size + 1));
+        OSF_MainMemTree->root = (OSF_MemBlock *)GC_REALLOC(OSF_MainMemTree->root, sizeof(OSF_MemBlock) * (OSF_MainMemTree->size + 1));
 
     OSF_MainMemTree->root[OSF_MainMemTree->size].addr = ptr;
     OSF_MainMemTree->root[OSF_MainMemTree->size].size = num * size;
@@ -229,7 +228,7 @@ void __OSF_Free(void *ptr, const char *__fname, int __line)
 
     if (sf_del != -1)
         if (!already_free)
-            free(ptr);
+            GC_FREE(ptr);
         else
             OSF_Error("OSF_Free: Pointer already freed", __fname, __line);
     else
@@ -238,8 +237,8 @@ void __OSF_Free(void *ptr, const char *__fname, int __line)
         return;
     }
 
-    OSF_MemTree *copyOsfMemBlock = (OSF_MemTree *)malloc(sizeof(OSF_MemTree));
-    copyOsfMemBlock->root = (OSF_MemBlock *)malloc((OSF_MainMemTree->size - 1) * sizeof(OSF_MemBlock));
+    OSF_MemTree *copyOsfMemBlock = (OSF_MemTree *)GC_MALLOC(sizeof(OSF_MemTree));
+    copyOsfMemBlock->root = (OSF_MemBlock *)GC_MALLOC((OSF_MainMemTree->size - 1) * sizeof(OSF_MemBlock));
     copyOsfMemBlock->size = 0;
 
     for (size_t i = 0; i < OSF_MainMemTree->size; i++)
@@ -255,11 +254,11 @@ void __OSF_Free(void *ptr, const char *__fname, int __line)
             .size = OSF_MainMemTree->root[i].size};
     }
 
-    free(OSF_MainMemTree->root);
-    free(OSF_MainMemTree);
+    GC_FREE(OSF_MainMemTree->root);
+    GC_FREE(OSF_MainMemTree);
 
-    OSF_MainMemTree = (OSF_MemTree *)malloc(sizeof(OSF_MemTree));
-    OSF_MainMemTree->root = (OSF_MemBlock *)malloc(copyOsfMemBlock->size * sizeof(OSF_MemBlock));
+    OSF_MainMemTree = (OSF_MemTree *)GC_MALLOC(sizeof(OSF_MemTree));
+    OSF_MainMemTree->root = (OSF_MemBlock *)GC_MALLOC(copyOsfMemBlock->size * sizeof(OSF_MemBlock));
     OSF_MainMemTree->size = copyOsfMemBlock->size;
 
     for (size_t i = 0; i < copyOsfMemBlock->size; i++)
@@ -272,14 +271,14 @@ void __OSF_Free(void *ptr, const char *__fname, int __line)
             .size = copyOsfMemBlock->root[i].size};
     }
 
-    free(copyOsfMemBlock->root);
+    GC_FREE(copyOsfMemBlock->root);
     copyOsfMemBlock->root = NULL;
-    free(copyOsfMemBlock);
+    GC_FREE(copyOsfMemBlock);
     copyOsfMemBlock = NULL;
 
     OSF_DetermineHeapSize();
 #if __DOSF_PRINT_HEAP_TRACE__ == 1
-    fprintf(stdout, "[free] ");
+    fprintf(stdout, "[GC_FREE] ");
     OSF_PrintHeapSize();
     fprintf(stdout, " in function: %s at line %d\n", __fname, __line);
 #endif
@@ -318,13 +317,13 @@ int __OSF_MemDestroy(const char *__fname, int __line)
     // for (size_t i = 0; i < OSF_MainMemTree->size; i++)
     // {
     //     if (!(OSF_MainMemTree->root[i].is_free) && !(OSF_MainMemTree->root[i].is_old))
-    //         free(OSF_MainMemTree->root[i].addr);
+    //         GC_FREE(OSF_MainMemTree->root[i].addr);
     // }
 
     OSF_MainMemTree->size = 0;
-    free(OSF_MainMemTree->root);
+    GC_FREE(OSF_MainMemTree->root);
     OSF_MainMemTree->root = NULL;
-    free(OSF_MainMemTree);
+    GC_FREE(OSF_MainMemTree);
     OSF_MainMemTree = NULL;
 
     return 0;
@@ -353,5 +352,12 @@ void __OSF_InternalFree(void *ptr)
 {
     if (ptr == NULL)
         return;
-    free(ptr);
+    GC_FREE(ptr);
+}
+
+char *__OSF_strdup(const char *_str)
+{
+    char *res = OSF_Malloc((strlen(_str) + 1) * sizeof(char));
+    strcpy(res, _str);
+    return res;
 }

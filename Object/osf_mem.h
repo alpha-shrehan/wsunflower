@@ -79,7 +79,8 @@ typedef struct
 #define OSF_PrintHeapSize() __OSF_PrintHeapSize(__func__, __LINE__)
 #endif
 
-#define OSF_IntFree(x) __OSF_InternalFree(x);
+#define OSF_IntFree(x) __OSF_InternalFree(x)
+#define OSF_strdup(x) GC_STRDUP(x)
 
 void __OSF_MemInit(const char *, int);
 void *__OSF_Malloc(size_t size, const char *, int) __attribute__((malloc));
@@ -97,3 +98,4 @@ void __OSF_DetermineHeapSize(const char *, int);
 void __OSF_PrintHeapSize(const char *, int);
 OSF_MemTree **__OSF_GetMainMemTree(void);
 void __OSF_InternalFree(void *);
+char *__OSF_strdup(const char *);

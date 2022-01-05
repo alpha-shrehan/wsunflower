@@ -1,0 +1,9 @@
+# usage:
+# import json
+# Target sample: {"a": 1, "b": 2}
+
+import .decoder as D
+import .encoder as E
+
+decode = D.Decoder
+encode = E.Encoder

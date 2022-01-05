@@ -1,6 +1,7 @@
 #pragma once
 
 #define BODY(X) _mod_body(X)
+#define ARRAY(X) (*PSG_GetArray_Ptr((X)))
 
 #include <assert.h>
 #include <limits.h>
@@ -114,8 +115,7 @@ struct _expr
 
                 struct
                 {
-                    struct _expr *vals;
-                    int len;
+                    int index;
                 } Array;
 
                 struct
@@ -444,6 +444,27 @@ struct _class
 
 typedef struct _class class_t;
 
+struct _array
+{
+    expr_t *vals;
+    int len;
+};
+
+typedef struct _array array_t;
+
+/**
+ * @brief This does not refer to data types in sunflower like None.
+ * It refers to the general built in data types like int, string.
+ * This stores variables for such data types.
+ * Think of .__proto__ in JavaScript
+ */
+struct _dtype_proto_s {
+    int type;
+    var_t val;
+};
+
+typedef struct _dtype_proto_s DtypeProto_t;
+
 /**
  * @brief Create a new module
  * @param mod_type Type of module
@@ -535,6 +556,32 @@ class_t **PSG_GetClasses(void);
  * @return int*
  */
 int *PSG_GetClassesSize(void);
+
+/**
+ * @brief Get reference of variable that stores all arrays of Sunflower
+ * @return array_t**
+ */
+array_t **PSG_GetArrays(void);
+
+/**
+ * @brief Get reference to variable that stores array holder's size
+ * @return int*
+ */
+int *PSG_GetArraysSize(void);
+
+/**
+ * @brief Add array to global holder
+ * @param arr Array
+ * @return int 
+ */
+int PSG_AddArray(array_t);
+
+/**
+ * @brief Get array from index
+ * @param idx Index
+ * @return array_t 
+ */
+array_t *PSG_GetArray_Ptr(int);
 
 /**
  * @brief Environment Initializer for Sunflower PSG
@@ -673,3 +720,33 @@ stmt_t _PSF_ConstructFunctionStmt(psf_byte_array_t *, int, int *);
  * @return stmt_t
  */
 stmt_t _PSF_ConstructClassStmt(psf_byte_array_t *, int, size_t *);
+
+/**
+ * @brief Get reference to the Dtype Proto Holder object
+ * @return DtypeProto_t** 
+ */
+
+DtypeProto_t **GetDtypeProtoHolder(void);
+
+/**
+ * @brief Get reference to the Dtype Proto Holder object's size
+ * @return int* 
+ */
+int *GetDtypeProtoHolderSize(void);
+
+/**
+ * @brief Add a new prototype value
+ * @param type Type it refers to
+ * @param name Symbol name
+ * @param val Symbol value
+ * @return int
+ */
+int AddDtypePrototype(int, char *, expr_t);
+
+/**
+ * @brief Get prototype variable from symbol and type it belongs to
+ * @param type Type
+ * @param name Symbol
+ * @return var_t* (pointer because it can be NULL)
+ */
+var_t *GetDtypePrototype_fromSymbolAndType(int, char *);
