@@ -28,3 +28,5 @@ void SFBuiltIn_AddDefaultFunctions(mod_t *);
  * Like int, string
  */
 void SFAdd_Protos_for_built_in_types(void);
+
+const char *read_file(const char *);

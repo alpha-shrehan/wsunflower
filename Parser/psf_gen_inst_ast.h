@@ -23,7 +23,8 @@ enum ExprTypeEnum
     EXPR_TYPE_THEN_WHILE,
     EXPR_TYPE_INLINE_REPEAT,
     EXPR_TYPE_CLASS,
-    EXPR_TYPE_MEMBER_ACCESS
+    EXPR_TYPE_MEMBER_ACCESS,
+    EXPR_TYPE_MODULE
 };
 
 enum ConstantTypeEnum
@@ -217,6 +218,11 @@ struct _expr
             char *child;
         } member_access;
 
+        struct
+        {
+            int index;
+        } module_s;
+
     } v;
 };
 
@@ -327,6 +333,8 @@ struct _stmt
             int arg_size;
             struct _stmt *body;
             int body_size;
+            int takes_def_args;
+            int takes_var_args;
         } function_decl;
 
         struct
@@ -338,9 +346,11 @@ struct _stmt
 
         struct
         {
-            char *name;
+            char *path;
             expr_t *args;
-        } import;
+            int arg_count;
+            char *alias;
+        } import_s;
 
         struct
         {
@@ -448,6 +458,7 @@ struct _array
 {
     expr_t *vals;
     int len;
+    struct _array *parent; // Only one instance
 };
 
 typedef struct _array array_t;
@@ -568,6 +579,32 @@ array_t **PSG_GetArrays(void);
  * @return int*
  */
 int *PSG_GetArraysSize(void);
+
+/**
+ * @brief Get reference to variable that stores module holder's size
+ * @return int* 
+ */
+int *PSG_GetModuleHolderSize(void);
+
+/**
+ * @brief Get reference of variable that stores all imported modules of Sunflower
+ * @return mod_t** 
+ */
+mod_t ***PSG_GetModules(void);
+
+/**
+ * @brief Add module to global module holder
+ * @param mod Module
+ * @return int 
+ */
+int PSG_AddModule(mod_t *);
+
+/**
+ * @brief Get module from index
+ * @param idx Index
+ * @return mod_t* 
+ */
+mod_t *PSG_GetModule(int);
 
 /**
  * @brief Add array to global holder
@@ -750,3 +787,11 @@ int AddDtypePrototype(int, char *, expr_t);
  * @return var_t* (pointer because it can be NULL)
  */
 var_t *GetDtypePrototype_fromSymbolAndType(int, char *);
+
+/**
+ * @brief Construct import line from bytecode
+ * @param arr Array
+ * @param idx Start index
+ * @return stmt_t 
+ */
+stmt_t _PSF_ConstructImportLine(psf_byte_array_t *, int);

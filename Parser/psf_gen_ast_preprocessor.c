@@ -17,6 +17,8 @@ const char *PSF_ValidTokens[] = {
     "repeat",
     "fun",
     "class",
+    "import",
+    "as",
     NULL};
 
 const char *PSF_ValidDataTypes[] = {

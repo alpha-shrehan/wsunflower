@@ -473,3 +473,42 @@ void SFAdd_Protos_for_built_in_types(void)
                     .name = "push",
                     .index = _native_dtype_array_method_pushidx}}});
 }
+
+const char *read_file(const char *path)
+{
+    FILE *file = fopen(path, "r");
+    if (file == NULL)
+    {
+        return NULL;
+    }
+
+    char *data = (char *)OSF_Malloc(sizeof(char));
+    int data_count = 1;
+
+    *data = '\n';
+
+    while (1)
+    {
+        int c = fgetc(file);
+        if (c == EOF)
+        {
+            break;
+        }
+
+        data = (char *)OSF_Realloc(data, sizeof(char) * (data_count + 1));
+        data[data_count] = (char)c;
+        data_count++;
+    }
+
+    data = (char *)OSF_Realloc(data, sizeof(char) * (data_count + 2));
+    data[data_count] = '\n';
+    data[data_count + 1] = '\0';
+
+    fclose(file);
+
+    const char *data_cpy = OSF_strdup(data);
+    OSF_Free(data);
+    data = NULL;
+
+    return data_cpy;
+}

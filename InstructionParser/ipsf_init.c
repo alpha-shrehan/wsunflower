@@ -1,5 +1,6 @@
 #include "ipsf_init.h"
 #include <Parser/array_t.h>
+#include <builtins/built_in.h>
 
 /**
  * MAIN:
@@ -323,6 +324,11 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
             _fdef.v.Coded.body = curr.v.function_decl.body;
             _fdef.v.Coded.body_size = curr.v.function_decl.body_size;
 
+            if (curr.v.function_decl.takes_var_args)
+                _fdef.arg_acceptance_count = -1;
+            else if (curr.v.function_decl.takes_def_args)
+                _fdef.arg_acceptance_count = -2;
+
             int f_idx = PSG_AddFunction(_fdef);
             *RET = (expr_t){.type = EXPR_TYPE_FUNCTION, .v.function_s = {.index = f_idx, .name = (char *)fname}};
 
@@ -376,6 +382,32 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
             *(mod->returns) = IPSF_ReduceExpr_toConstant(mod, *(curr.v.return_stmt.expr));
         }
         break;
+        case STATEMENT_TYPE_IMPORT:
+        {
+            psf_byte_array_t *_ast;
+            _ast = PSF_AST_fromString(read_file(curr.v.import_s.path));
+            PSF_AST_Preprocess_fromByteArray(_ast);
+
+            mod_t *imod = SF_CreateModule(MODULE_TYPE_FILE, _ast);
+            SF_FrameIT_fromAST(imod);
+            BODY(imod)->name = curr.v.import_s.alias;
+
+            SFBuiltIn_AddDefaultFunctions(imod);
+
+            int _err;
+            OSF_Free(IPSF_ExecIT_fromMod(imod, &_err));
+
+            int md_idx = PSG_AddModule(imod);
+            assert(curr.v.import_s.alias != NULL && SF_FMT("Error: Imports must have an alias"));
+
+            const char *varname = (const char *)curr.v.import_s.alias;
+
+            if (varname != NULL)
+            {
+                _IPSF_AddVar_toModule(mod, (char *)varname, (expr_t){.type = EXPR_TYPE_MODULE, .v = {.module_s = {.index = md_idx}}});
+            }
+        }
+        break;
 
         default:
             break;
@@ -412,8 +444,10 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
 
             for (size_t j = 0; j < ARRAY(expr->v.constant.Array.index).len; j++)
                 cpy_reds[j] = IPSF_ReduceExpr_toConstant(mod, cpy_vals[j]);
-            
+
             ex_cpy.v.constant.Array.index = PSG_AddArray(Sf_Array_New_fromExpr(cpy_reds, ARRAY(expr->v.constant.Array.index).len));
+
+            PSG_GetArray_Ptr(ex_cpy.v.constant.Array.index)->parent = PSG_GetArray_Ptr(expr->v.constant.Array.index);
         }
         break;
 
@@ -446,6 +480,7 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
         {
             // assert(IPSF_GetVar_fromMod(mod, fun_name, err) != NULL && SF_FMT("Error: Variable does not exist."));
             // expr_t get_f = IPSF_GetVar_fromMod(mod, fun_name, err)->val;
+            mod_t *m_pass = mod;
             expr_t get_f = _red_nme;
             assert(get_f.v.function_s.index < *PSG_GetFunctionsSize() && SF_FMT("Error: seg_fault"));
 
@@ -456,8 +491,13 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
 
             if (OSF_MemorySafeToFree(get_f.next)) // If it was OSF_Mallocated, this condition would be true
             {
-                f_args = OSF_Realloc(f_args, (expr->v.function_call.arg_size + 1) * sizeof(expr_t));
-                f_args[fa_beg++] = *(get_f.next);
+                if (get_f.next->type != EXPR_TYPE_MODULE)
+                {
+                    f_args = OSF_Realloc(f_args, (expr->v.function_call.arg_size + 1) * sizeof(expr_t));
+                    f_args[fa_beg++] = *(get_f.next);
+                }
+                else
+                    m_pass = PSG_GetModule(get_f.next->v.module_s.index);
             }
 
             for (size_t j = 0; j < expr->v.function_call.arg_size; j++)
@@ -466,7 +506,7 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
             }
             fa_beg += expr->v.function_call.arg_size;
 
-            expr_t *f_res = _IPSF_CallFunction(fun_s, f_args, fa_beg, mod);
+            expr_t *f_res = _IPSF_CallFunction(fun_s, f_args, fa_beg, m_pass);
             *RES = *f_res;
             OSF_Free(f_res);
 
@@ -1045,6 +1085,17 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
             }
         }
         break;
+        case EXPR_TYPE_MODULE:
+        {
+            mod_t *gm = PSG_GetModule(_red.v.module_s.index);
+            var_t *gv = IPSF_GetVar_fromMod(gm, expr->v.member_access.child, NULL);
+
+            assert(gv != NULL && SF_FMT("Error: Module has no member '%s'."));
+            _res = gv->val;
+            _res.next = OSF_Malloc(sizeof(expr_t));
+            *(_res.next) = _red;
+        }
+        break;
         default:
         _label_mem_access_fallback:
             // PSG_PrintExprType(_red.type);
@@ -1358,6 +1409,20 @@ char *_IPSF_ObjectRepr(expr_t expr, int recur)
         }
         else
             _Res = "<function '<anonymous>'>";
+    }
+    break;
+    case EXPR_TYPE_MODULE:
+    {
+        mod_t *gm = PSG_GetModule(expr.v.module_s.index);
+
+        if (BODY(gm)->name == NULL)
+            _Res = "<module '<anonymous>'>";
+        else
+        {
+            _Res = OSF_Malloc((strlen(BODY(gm)->name) + 14) * sizeof(char));
+            sprintf(_Res, "<module '%s'>", BODY(gm)->name);
+            dy = 1;
+        }
     }
     break;
     default:
@@ -2108,6 +2173,18 @@ expr_t *_IPSF_CallFunction(fun_t fun_s, expr_t *args, int arg_size, mod_t *mod)
         first_void_ref = NULL;
     }
     break;
+    case -2:
+    {
+        int _t = 0;
+        for (size_t j = 0; j < _collectivise_args_count; j++)
+        {
+            if (_IPSF_IsDataType_Void(_collectivise_args[j]))
+                continue;
+
+            fun_mod->var_holds[_t++].val = _collectivise_args[j];
+        }
+    }
+    break;
 
     default:
     {
@@ -2117,7 +2194,11 @@ expr_t *_IPSF_CallFunction(fun_t fun_s, expr_t *args, int arg_size, mod_t *mod)
             if (_IPSF_IsDataType_Void(_collectivise_args[j]))
                 continue;
 
-            fun_mod->var_holds[j].val = _collectivise_args[j];
+            while (!_IPSF_IsDataType_Void(fun_mod->var_holds[_t].val) && _t < fun_mod->var_holds_size)
+                _t++;
+
+            if (_t < fun_mod->var_holds_size)
+                fun_mod->var_holds[_t++].val = _collectivise_args[j];
         }
     }
     break;
