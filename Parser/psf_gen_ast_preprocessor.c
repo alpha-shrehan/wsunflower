@@ -19,6 +19,9 @@ const char *PSF_ValidTokens[] = {
     "class",
     "import",
     "as",
+    "switch",
+    "case",
+    "default",
     NULL};
 
 const char *PSF_ValidDataTypes[] = {

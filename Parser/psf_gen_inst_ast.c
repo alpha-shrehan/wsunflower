@@ -296,6 +296,25 @@ expr_t SF_FrameExpr_fromByte(psf_byte_array_t *arr)
                     doBreak = 1;
                     break;
                 }
+                else if (!strcmp(tok, "in"))
+                {
+                    expr_t ret_pres = ret;
+                    ret.type = EXPR_TYPE_IN_CLAUSE;
+                    ret.v.in_clause._lhs = OSF_Malloc(sizeof(expr_t));
+                    ret.v.in_clause._rhs = OSF_Malloc(sizeof(expr_t));
+                    *(ret.v.in_clause._lhs) = ret_pres;
+
+                    psf_byte_array_t *_rhs_arr = _PSF_newByteArray();
+                    for (size_t j = i + 1; j < arr->size; j++)
+                        PSF_AST_ByteArray_AddNode(_rhs_arr, arr->nodes[j]);
+                    
+                    *(ret.v.in_clause._rhs) = SF_FrameExpr_fromByte(_rhs_arr);
+                    
+                    OSF_Free(_rhs_arr->nodes);
+                    OSF_Free(_rhs_arr);
+                    doBreak = 1;
+                    ret_now = 1;
+                }
             }
         }
         break;
@@ -1489,7 +1508,7 @@ void SF_FrameIT_fromAST(mod_t *mod)
                     PSG_AddStmt_toMod(mod, new_stmt);
 
                     int gb = 0;
-                    i++;
+                    i++; // Eat 'import', idk why tho
 
                     while (i < mod->ast->size)
                     {
@@ -1512,6 +1531,11 @@ void SF_FrameIT_fromAST(mod_t *mod)
 
                         i++;
                     }
+                }
+                else if (!strcmp(tok, "switch"))
+                {
+                    new_stmt = _PSF_ConstructSwitchStmt(mod->ast, i, &i);
+                    PSG_AddStmt_toMod(mod, new_stmt);
                 }
             }
         }
@@ -2840,7 +2864,7 @@ int PSG_AddModule(mod_t *mod)
 {
     if (*PSG_GetModuleHolderSize())
         (*PSG_GetModules()) = OSF_Realloc((*PSG_GetModules()), ((*PSG_GetModuleHolderSize()) + 1) * sizeof(mod_t *));
-    
+
     (*PSG_GetModules())[*PSG_GetModuleHolderSize()] = mod;
 
     return (*PSG_GetModuleHolderSize())++;
@@ -2850,6 +2874,164 @@ mod_t *PSG_GetModule(int idx)
 {
     if (idx > (*PSG_GetModuleHolderSize()) || idx < 0)
         return NULL;
-    
+
     return (*PSG_GetModules())[idx];
+}
+
+stmt_t _PSF_ConstructSwitchStmt(psf_byte_array_t *arr, int idx, size_t *end_ptr)
+{
+    stmt_t ret;
+    ret.type = STATEMENT_TYPE_SWITCH;
+    ret.v.switch_case.cases = OSF_Malloc(sizeof(ret.v.switch_case.sz_strct));
+    ret.v.switch_case.cases_count = 0;
+    ret.v.switch_case.condition = OSF_Malloc(sizeof(expr_t));
+    ret.v.switch_case.def_case.condition = NULL;
+    ret.v.switch_case.def_case.body_size = 0;
+    ret.v.switch_case.def_case.body = NULL;
+
+    idx++; // Eat 'switch'
+    int gb = 0;
+    psf_byte_array_t *_cond_arr = _PSF_newByteArray(), *body;
+
+    while (idx < arr->size)
+    {
+        psf_byte_t c = arr->nodes[idx];
+
+        if (c.nval_type == AST_NVAL_TYPE_OPERATOR)
+        {
+            if (!strcmp(c.v.Operator.val, "(") ||
+                !strcmp(c.v.Operator.val, "{") ||
+                !strcmp(c.v.Operator.val, "["))
+                gb++;
+            else if (!strcmp(c.v.Operator.val, ")") ||
+                     !strcmp(c.v.Operator.val, "}") ||
+                     !strcmp(c.v.Operator.val, "]"))
+                gb--;
+        }
+
+        if (c.nval_type == AST_NVAL_TYPE_NEWLINE && !gb)
+            break;
+
+        PSF_AST_ByteArray_AddNode(_cond_arr, c);
+
+        idx++;
+    }
+
+    gb = 0;
+    *(ret.v.switch_case.condition) = SF_FrameExpr_fromByte(_cond_arr);
+    body = _PSF_GetBody(arr, idx, _PSF_GetTabspace(arr, idx - 1));
+
+    size_t i = 0;
+    while (i < body->size)
+    {
+        psf_byte_t c = body->nodes[i];
+
+        if (c.nval_type == AST_NVAL_TYPE_IDENTIFIER &&
+            c.v.Identifier.is_token &&
+            !strcmp(c.v.Identifier.val, "case"))
+        {
+            expr_t *case_cond = OSF_Malloc(sizeof(expr_t));
+            psf_byte_array_t *cc_arr = _PSF_newByteArray();
+            int gb = 0;
+            i++; // Eat 'case'
+
+            while (i < body->size)
+            {
+                psf_byte_t _c = body->nodes[i];
+
+                if (_c.nval_type == AST_NVAL_TYPE_OPERATOR)
+                {
+                    if (!strcmp(_c.v.Operator.val, "(") ||
+                        !strcmp(_c.v.Operator.val, "{") ||
+                        !strcmp(_c.v.Operator.val, "["))
+                        gb++;
+                    else if (!strcmp(_c.v.Operator.val, ")") ||
+                             !strcmp(_c.v.Operator.val, "}") ||
+                             !strcmp(_c.v.Operator.val, "]"))
+                        gb--;
+                }
+
+                if (_c.nval_type == AST_NVAL_TYPE_NEWLINE && !gb)
+                    break;
+                
+                PSF_AST_ByteArray_AddNode(cc_arr, _c);
+                i++;
+            }
+            int saw_case_in = 0;
+
+            if (cc_arr->size)
+                saw_case_in = cc_arr->nodes->nval_type == AST_NVAL_TYPE_IDENTIFIER && cc_arr->nodes->v.Identifier.is_token && !strcmp(cc_arr->nodes->v.Identifier.val, "in");
+
+            if (!saw_case_in)
+                *case_cond = SF_FrameExpr_fromByte(cc_arr);
+            else
+            {
+                cc_arr->nodes++;
+                cc_arr->size--;
+                expr_t _r = (expr_t) {
+                    .type = EXPR_TYPE_IN_CLAUSE,
+                    .v = {
+                        .in_clause = {
+                            ._lhs = OSF_Malloc(sizeof(expr_t)),
+                            ._rhs = OSF_Malloc(sizeof(expr_t))
+                        }
+                    }
+                };
+                *(_r.v.in_clause._lhs) = *(ret.v.switch_case.condition);
+                *(_r.v.in_clause._rhs) = SF_FrameExpr_fromByte(cc_arr);
+
+                *case_cond = _r;
+                cc_arr->nodes--;
+                cc_arr->size++;
+            }
+
+            psf_byte_array_t *cbody_arr = _PSF_GetBody(body, i, _PSF_GetTabspace(body, i - 1));
+            mod_t *cb_m = SF_CreateModule(MODULE_TYPE_FILE, cbody_arr);
+            SF_FrameIT_fromAST(cb_m);
+
+            if (ret.v.switch_case.cases_count)
+                ret.v.switch_case.cases = OSF_Realloc(ret.v.switch_case.cases, (ret.v.switch_case.cases_count + 1) * sizeof(ret.v.switch_case.sz_strct));
+
+            ret.v.switch_case.cases[ret.v.switch_case.cases_count].body = BODY(cb_m)->body;
+            ret.v.switch_case.cases[ret.v.switch_case.cases_count].body_size = BODY(cb_m)->body_size;
+            ret.v.switch_case.cases[ret.v.switch_case.cases_count].condition = case_cond;
+            ret.v.switch_case.cases[ret.v.switch_case.cases_count].is_case_in = saw_case_in;
+            i += cbody_arr->size;
+
+            OSF_Free(cbody_arr->nodes);
+            OSF_Free(cbody_arr);
+            OSF_Free(cc_arr->nodes);
+            OSF_Free(cc_arr);
+
+            ret.v.switch_case.cases_count++;
+        }
+        else if (c.nval_type == AST_NVAL_TYPE_IDENTIFIER &&
+                 c.v.Identifier.is_token &&
+                 !strcmp(c.v.Identifier.val, "default"))
+        {
+            psf_byte_array_t *cbody_arr = _PSF_GetBody(body, i, _PSF_GetTabspace(body, i - 1));
+            mod_t *cb_m = SF_CreateModule(MODULE_TYPE_FILE, cbody_arr);
+            SF_FrameIT_fromAST(cb_m);
+
+            ret.v.switch_case.def_case.body = BODY(cb_m)->body;
+            ret.v.switch_case.def_case.body_size = BODY(cb_m)->body_size;
+            ret.v.switch_case.def_case.condition = NULL;
+
+            i += cbody_arr->size;
+
+            OSF_Free(cbody_arr->nodes);
+            OSF_Free(cbody_arr);
+        }
+        i++;
+    }
+
+    if (end_ptr != NULL)
+        (*end_ptr) += body->size;
+    
+    OSF_Free(body->nodes);
+    OSF_Free(body);
+    OSF_Free(_cond_arr->nodes);
+    OSF_Free(_cond_arr);
+
+    return ret;
 }

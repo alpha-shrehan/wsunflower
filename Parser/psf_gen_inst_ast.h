@@ -24,7 +24,8 @@ enum ExprTypeEnum
     EXPR_TYPE_INLINE_REPEAT,
     EXPR_TYPE_CLASS,
     EXPR_TYPE_MEMBER_ACCESS,
-    EXPR_TYPE_MODULE
+    EXPR_TYPE_MODULE,
+    EXPR_TYPE_IN_CLAUSE
 };
 
 enum ConstantTypeEnum
@@ -223,6 +224,12 @@ struct _expr
             int index;
         } module_s;
 
+        struct
+        {
+            struct _expr *_lhs;
+            struct _expr *_rhs;
+        } in_clause;
+
     } v;
 };
 
@@ -245,7 +252,8 @@ enum StatementTypeEnum
     STATEMENT_TYPE_IMPORT,
     STATEMENT_TYPE_COMMENT,
     STATEMENT_TYPE_VAR_REF,
-    STATEMENT_TYPE_REPEAT
+    STATEMENT_TYPE_REPEAT,
+    STATEMENT_TYPE_SWITCH
 };
 
 struct _conditional_struct
@@ -369,6 +377,21 @@ struct _stmt
             int body_size;
         } repeat_stmt;
 
+        struct
+        {
+            expr_t *condition;
+            // For size, just do sizeof(sz_strct)
+            struct
+            {
+                expr_t *condition;
+                struct _stmt *body;
+                int body_size;
+                int is_case_in; // If 1, check for True, not ==
+            } *cases, def_case, sz_strct; // condition is NULL for def_case
+            int cases_count;
+            
+        } switch_case;
+
     } v;
 };
 
@@ -459,6 +482,7 @@ struct _array
     expr_t *vals;
     int len;
     struct _array *parent; // Only one instance
+    int evaluated;
 };
 
 typedef struct _array array_t;
@@ -795,3 +819,12 @@ var_t *GetDtypePrototype_fromSymbolAndType(int, char *);
  * @return stmt_t 
  */
 stmt_t _PSF_ConstructImportLine(psf_byte_array_t *, int);
+
+/**
+ * @brief Construct switch statement from bytecode
+ * @param arr Array
+ * @param idx Start index
+ * @param end_ptr End index pointer
+ * @return stmt_t 
+ */
+stmt_t _PSF_ConstructSwitchStmt(psf_byte_array_t *, int, size_t *);

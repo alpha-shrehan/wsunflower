@@ -408,6 +408,64 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
             }
         }
         break;
+        case STATEMENT_TYPE_SWITCH:
+        {
+            expr_t red_cond = IPSF_ReduceExpr_toConstant(mod, *(curr.v.switch_case.condition));
+            int c_true = 0;
+
+            for (size_t j = 0; j < curr.v.switch_case.cases_count; j++)
+            {
+                expr_t curr_case_red = IPSF_ReduceExpr_toConstant(mod, *(curr.v.switch_case.cases[j].condition));
+                // printf("[%s]\n", curr.v.switch_case.cases[i].condition->v.constant.String.value);
+                // PSG_PrintExprType(red_cond.type);
+                // PSG_PrintExprType(curr_case_red.type);
+                if (!curr.v.switch_case.cases[j].is_case_in)
+                {
+                    if (_PSF_EntityIsTrue(_IPSF_ExecLogicalArithmetic(red_cond, LOGICAL_OP_EQEQ, curr_case_red)))
+                    {
+                        mod_t *m = SF_CreateModule(mod->type, NULL);
+                        m->parent = mod;
+                        BODY(m)->body = curr.v.switch_case.cases[j].body;
+                        BODY(m)->body_size = curr.v.switch_case.cases[j].body_size;
+
+                        OSF_Free(IPSF_ExecIT_fromMod(m, NULL));
+
+                        c_true = 1;
+                        break;
+                    }
+                }
+                else
+                {
+                    if (_PSF_EntityIsTrue(curr_case_red))
+                    {
+                        mod_t *m = SF_CreateModule(mod->type, NULL);
+                        m->parent = mod;
+                        BODY(m)->body = curr.v.switch_case.cases[j].body;
+                        BODY(m)->body_size = curr.v.switch_case.cases[j].body_size;
+
+                        OSF_Free(IPSF_ExecIT_fromMod(m, NULL));
+
+                        c_true = 1;
+                        break;
+                    }
+                }
+            }
+
+            if (!c_true)
+            {
+                // Execute default case, if provided
+                if (curr.v.switch_case.def_case.body_size)
+                {
+                    mod_t *m = SF_CreateModule(mod->type, NULL);
+                    m->parent = mod;
+                    BODY(m)->body = curr.v.switch_case.def_case.body;
+                    BODY(m)->body_size = curr.v.switch_case.def_case.body_size;
+
+                    OSF_Free(IPSF_ExecIT_fromMod(m, NULL));
+                }
+            }
+        }
+        break;
 
         default:
             break;
@@ -439,15 +497,19 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
         case CONSTANT_TYPE_ARRAY:
         {
             // DO NOT FREE
-            expr_t *cpy_vals = ARRAY(expr->v.constant.Array.index).vals;
-            expr_t *cpy_reds = OSF_Malloc(ARRAY(expr->v.constant.Array.index).len * sizeof(expr_t));
+            if (!ARRAY(expr->v.constant.Array.index).evaluated)
+            {
+                expr_t *cpy_vals = ARRAY(expr->v.constant.Array.index).vals;
+                expr_t *cpy_reds = OSF_Malloc(ARRAY(expr->v.constant.Array.index).len * sizeof(expr_t));
 
-            for (size_t j = 0; j < ARRAY(expr->v.constant.Array.index).len; j++)
-                cpy_reds[j] = IPSF_ReduceExpr_toConstant(mod, cpy_vals[j]);
+                for (size_t j = 0; j < ARRAY(expr->v.constant.Array.index).len; j++)
+                    cpy_reds[j] = IPSF_ReduceExpr_toConstant(mod, cpy_vals[j]);
 
-            ex_cpy.v.constant.Array.index = PSG_AddArray(Sf_Array_New_fromExpr(cpy_reds, ARRAY(expr->v.constant.Array.index).len));
+                ex_cpy.v.constant.Array.index = PSG_AddArray(Sf_Array_New_fromExpr(cpy_reds, ARRAY(expr->v.constant.Array.index).len));
 
-            PSG_GetArray_Ptr(ex_cpy.v.constant.Array.index)->parent = PSG_GetArray_Ptr(expr->v.constant.Array.index);
+                PSG_GetArray_Ptr(ex_cpy.v.constant.Array.index)->evaluated = 1;
+                PSG_GetArray_Ptr(ex_cpy.v.constant.Array.index)->parent = PSG_GetArray_Ptr(expr->v.constant.Array.index);
+            }
         }
         break;
 
@@ -612,135 +674,9 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
     {
         int op_ty = expr->v.logical_arith_op_expr.op;
         expr_t _lhs = IPSF_ReduceExpr_toConstant(mod, *(expr->v.logical_arith_op_expr.lhs)),
-               _rhs = IPSF_ReduceExpr_toConstant(mod, *(expr->v.logical_arith_op_expr.rhs)),
-               _res = (expr_t){
-                   .type = EXPR_TYPE_CONSTANT,
-                   .v = {
-                       .constant = {
-                           .constant_type = CONSTANT_TYPE_BOOL}}};
+               _rhs = IPSF_ReduceExpr_toConstant(mod, *(expr->v.logical_arith_op_expr.rhs));
 
-        switch (op_ty)
-        {
-        case LOGICAL_OP_EQEQ:
-        {
-            if (_lhs.type == _rhs.type)
-            {
-                switch (_lhs.type)
-                {
-                case EXPR_TYPE_CONSTANT:
-                {
-                    if (_lhs.v.constant.constant_type ==
-                        _rhs.v.constant.constant_type)
-                    {
-                        switch (_lhs.v.constant.constant_type)
-                        {
-                        case CONSTANT_TYPE_BOOL:
-                            _res.v.constant.Bool.value = _lhs.v.constant.Bool.value == _rhs.v.constant.Bool.value;
-                            break;
-                        case CONSTANT_TYPE_DTYPE:
-                            _res.v.constant.Bool.value = _lhs.v.constant.DType.type == _rhs.v.constant.DType.type;
-                            break;
-                        case CONSTANT_TYPE_FLOAT:
-                        {
-                            if (_lhs.v.constant.Float.is_inf &&
-                                _rhs.v.constant.Float.is_inf)
-                                _res.v.constant.Bool.value = 1;
-                            else
-                                _res.v.constant.Bool.value = _lhs.v.constant.Float.value == _rhs.v.constant.Float.value;
-                        }
-                        break;
-                        case CONSTANT_TYPE_INT:
-                            _res.v.constant.Bool.value = _lhs.v.constant.Int.value == _rhs.v.constant.Int.value;
-                            break;
-                        case CONSTANT_TYPE_STRING:
-                            _res.v.constant.Bool.value = !strcmp(_lhs.v.constant.String.value, _rhs.v.constant.String.value);
-                            break;
-                        default:
-                            assert(0 && SF_FMT("Unknown entities to compare"));
-                            _res.v.constant.Bool.value = 0;
-                            break;
-                        }
-                    }
-                    else
-                    {
-                        _res.v.constant.Bool.value = 0;
-                    }
-                }
-                break;
-
-                default:
-                    break;
-                }
-            }
-            else
-            {
-                _res.v.constant.Bool.value = 0;
-            }
-        }
-        break;
-        case LOGICAL_OP_NEQ:
-        {
-            if (_lhs.type == _rhs.type)
-            {
-                switch (_lhs.type)
-                {
-                case EXPR_TYPE_CONSTANT:
-                {
-                    if (_lhs.v.constant.constant_type ==
-                        _rhs.v.constant.constant_type)
-                    {
-                        switch (_lhs.v.constant.constant_type)
-                        {
-                        case CONSTANT_TYPE_BOOL:
-                            _res.v.constant.Bool.value = _lhs.v.constant.Bool.value != _rhs.v.constant.Bool.value;
-                            break;
-                        case CONSTANT_TYPE_DTYPE:
-                            _res.v.constant.Bool.value = _lhs.v.constant.DType.type != _rhs.v.constant.DType.type;
-                            break;
-                        case CONSTANT_TYPE_FLOAT:
-                        {
-                            if (_lhs.v.constant.Float.is_inf &&
-                                _rhs.v.constant.Float.is_inf)
-                                _res.v.constant.Bool.value = 0;
-                            else
-                                _res.v.constant.Bool.value = _lhs.v.constant.Float.value != _rhs.v.constant.Float.value;
-                        }
-                        break;
-                        case CONSTANT_TYPE_INT:
-                            _res.v.constant.Bool.value = _lhs.v.constant.Int.value != _rhs.v.constant.Int.value;
-                            break;
-                        case CONSTANT_TYPE_STRING:
-                            _res.v.constant.Bool.value = !!strcmp(_lhs.v.constant.String.value, _rhs.v.constant.String.value);
-                            break;
-                        default:
-                            assert(0 && SF_FMT("Unknown entities to compare"));
-                            _res.v.constant.Bool.value = 1;
-                            break;
-                        }
-                    }
-                    else
-                    {
-                        _res.v.constant.Bool.value = 1;
-                    }
-                }
-                break;
-
-                default:
-                    break;
-                }
-            }
-            else
-            {
-                _res.v.constant.Bool.value = 1;
-            }
-        }
-        break;
-
-        default:
-            break;
-        }
-
-        *RES = _res;
+        *RES = _IPSF_ExecLogicalArithmetic(_lhs, op_ty, _rhs);
     }
     break;
     case EXPR_TYPE_TO_STEP_CLAUSE:
@@ -1106,6 +1042,14 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
         *RES = _res;
     }
     break;
+    case EXPR_TYPE_IN_CLAUSE:
+    {
+        expr_t lhs = IPSF_ReduceExpr_toConstant(mod, *(expr->v.in_clause._lhs)),
+               rhs = IPSF_ReduceExpr_toConstant(mod, *(expr->v.in_clause._rhs));
+
+        *RES = _IPSF_Entity_IsIn_Entity(lhs, rhs, mod);
+    }
+    break;
     default:
     {
         *RES = *expr;
@@ -1376,14 +1320,24 @@ char *_IPSF_ObjectRepr(expr_t expr, int recur)
         case CONSTANT_TYPE_CLASS_OBJECT:
         {
             class_t g_c = *_IPSF_GetClass_fromIntTuple(expr.v.constant.ClassObj.idx);
-            if (g_c.name != NULL)
+
+            if (IPSF_GetVar_fromMod(g_c.mod, "__str__", NULL) == NULL)
             {
-                _Res = OSF_Malloc((13 + strlen(g_c.name)) * sizeof(char));
-                dy = 1;
-                sprintf(_Res, "<class '%s'>", g_c.name);
+                if (g_c.name != NULL)
+                {
+                    _Res = OSF_Malloc((13 + strlen(g_c.name)) * sizeof(char));
+                    dy = 1;
+                    sprintf(_Res, "<class '%s'>", g_c.name);
+                }
+                else
+                    _Res = "<class '<anonymous>'>";
             }
             else
-                _Res = "<class '<anonymous>'>";
+            {
+                expr_t *__r = _IPSF_CallFunction((*PSG_GetFunctions())[IPSF_GetVar_fromMod(g_c.mod, "__str__", NULL)->val.v.function_s.index], (expr_t *)(expr_t[]){expr}, 1, g_c.mod);
+                _Res = _IPSF_ObjectRepr(*__r, 0);
+                OSF_Free(__r);
+            }
         }
         break;
         default:
@@ -2301,4 +2255,196 @@ void _IPSF_DestClasses(mod_t *mod)
 class_t *_IPSF_GetClass_fromIntTuple(int_tuple tup)
 {
     return &((*PSG_GetClasses())[tup.x1].objects[tup.x2]);
+}
+
+expr_t _IPSF_ExecLogicalArithmetic(expr_t _lhs, int op_ty, expr_t _rhs)
+{
+    expr_t _res = (expr_t){
+        .type = EXPR_TYPE_CONSTANT,
+        .v = {
+            .constant = {
+                .constant_type = CONSTANT_TYPE_BOOL}}};
+
+    switch (op_ty)
+    {
+    case LOGICAL_OP_EQEQ:
+    {
+        if (_lhs.type == _rhs.type)
+        {
+            switch (_lhs.type)
+            {
+            case EXPR_TYPE_CONSTANT:
+            {
+                if (_lhs.v.constant.constant_type ==
+                    _rhs.v.constant.constant_type)
+                {
+                    switch (_lhs.v.constant.constant_type)
+                    {
+                    case CONSTANT_TYPE_BOOL:
+                        _res.v.constant.Bool.value = _lhs.v.constant.Bool.value == _rhs.v.constant.Bool.value;
+                        break;
+                    case CONSTANT_TYPE_DTYPE:
+                        _res.v.constant.Bool.value = _lhs.v.constant.DType.type == _rhs.v.constant.DType.type;
+                        break;
+                    case CONSTANT_TYPE_FLOAT:
+                    {
+                        if (_lhs.v.constant.Float.is_inf &&
+                            _rhs.v.constant.Float.is_inf)
+                            _res.v.constant.Bool.value = 1;
+                        else
+                            _res.v.constant.Bool.value = _lhs.v.constant.Float.value == _rhs.v.constant.Float.value;
+                    }
+                    break;
+                    case CONSTANT_TYPE_INT:
+                        _res.v.constant.Bool.value = _lhs.v.constant.Int.value == _rhs.v.constant.Int.value;
+                        break;
+                    case CONSTANT_TYPE_STRING:
+                        _res.v.constant.Bool.value = !strcmp(_lhs.v.constant.String.value, _rhs.v.constant.String.value);
+                        break;
+                    default:
+                        assert(0 && SF_FMT("Unknown entities to compare"));
+                        _res.v.constant.Bool.value = 0;
+                        break;
+                    }
+                }
+                else
+                {
+                    _res.v.constant.Bool.value = 0;
+                }
+            }
+            break;
+
+            default:
+                break;
+            }
+        }
+        else
+        {
+            _res.v.constant.Bool.value = 0;
+        }
+    }
+    break;
+    case LOGICAL_OP_NEQ:
+    {
+        if (_lhs.type == _rhs.type)
+        {
+            switch (_lhs.type)
+            {
+            case EXPR_TYPE_CONSTANT:
+            {
+                if (_lhs.v.constant.constant_type ==
+                    _rhs.v.constant.constant_type)
+                {
+                    switch (_lhs.v.constant.constant_type)
+                    {
+                    case CONSTANT_TYPE_BOOL:
+                        _res.v.constant.Bool.value = _lhs.v.constant.Bool.value != _rhs.v.constant.Bool.value;
+                        break;
+                    case CONSTANT_TYPE_DTYPE:
+                        _res.v.constant.Bool.value = _lhs.v.constant.DType.type != _rhs.v.constant.DType.type;
+                        break;
+                    case CONSTANT_TYPE_FLOAT:
+                    {
+                        if (_lhs.v.constant.Float.is_inf &&
+                            _rhs.v.constant.Float.is_inf)
+                            _res.v.constant.Bool.value = 0;
+                        else
+                            _res.v.constant.Bool.value = _lhs.v.constant.Float.value != _rhs.v.constant.Float.value;
+                    }
+                    break;
+                    case CONSTANT_TYPE_INT:
+                        _res.v.constant.Bool.value = _lhs.v.constant.Int.value != _rhs.v.constant.Int.value;
+                        break;
+                    case CONSTANT_TYPE_STRING:
+                        _res.v.constant.Bool.value = !!strcmp(_lhs.v.constant.String.value, _rhs.v.constant.String.value);
+                        break;
+                    default:
+                        assert(0 && SF_FMT("Unknown entities to compare"));
+                        _res.v.constant.Bool.value = 1;
+                        break;
+                    }
+                }
+                else
+                {
+                    _res.v.constant.Bool.value = 1;
+                }
+            }
+            break;
+
+            default:
+                break;
+            }
+        }
+        else
+        {
+            _res.v.constant.Bool.value = 1;
+        }
+    }
+    break;
+
+    default:
+        break;
+    }
+
+    return _res;
+}
+
+expr_t _IPSF_Entity_IsIn_Entity(expr_t lhs, expr_t rhs, mod_t *mod)
+{
+    expr_t res = (expr_t){
+        .type = EXPR_TYPE_CONSTANT,
+        .v = {
+            .constant = {
+                .constant_type = CONSTANT_TYPE_BOOL,
+                .Bool = {
+                    .value = 0}}}};
+
+    switch (rhs.type)
+    {
+    case EXPR_TYPE_CONSTANT:
+    {
+        switch (rhs.v.constant.constant_type)
+        {
+        case CONSTANT_TYPE_ARRAY:
+        {
+            array_t arr = ARRAY(rhs.v.constant.Array.index);
+
+            for (size_t i = 0; i < arr.len; i++)
+            {
+                if (_PSF_EntityIsTrue(_IPSF_ExecLogicalArithmetic(lhs, LOGICAL_OP_EQEQ, arr.vals[i])))
+                {
+                    res.v.constant.Bool.value = 1;
+                    break;
+                }
+            }
+        }
+        break;
+        case CONSTANT_TYPE_STRING:
+        {
+            assert(
+                (lhs.type == EXPR_TYPE_CONSTANT &&
+                 lhs.v.constant.constant_type == CONSTANT_TYPE_STRING) &&
+                SF_FMT("Error: Entity must be string."));
+
+            char *lhs_s = SF_STRING(lhs.v.constant.String.value),
+                 *rhs_s = SF_STRING(rhs.v.constant.String.value);
+
+            res.v.constant.Bool.value = (char *)strstr(rhs_s, lhs_s) != NULL;
+        }
+        break;
+
+        default:
+            goto _entity_in_entity_fallback_label;
+            break;
+        }
+    }
+    break;
+
+    default:
+    _entity_in_entity_fallback_label:
+        assert(0 && SF_FMT("Error: Invalid iterator."));
+        break;
+    }
+
+    return res;
 }

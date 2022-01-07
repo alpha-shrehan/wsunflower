@@ -409,7 +409,33 @@ expr_t *Native_Proto_Array_push(mod_t *mod_ref)
                 .constant_type = CONSTANT_TYPE_DTYPE,
                 .DType = {
                     .type = DATA_TYPE_NONE}}}};
+
+    return __res;
+}
+
+expr_t *Native_Proto_Array_pop(mod_t *mod_ref)
+{
+    var_t *v_Member = IPSF_GetVar_fromMod(mod_ref, "_Member", NULL),
+          *v_Data = IPSF_GetVar_fromMod(mod_ref, "data", NULL);
+    assert(v_Member != NULL && SF_FMT("Error: seg_fault"));
+
+    expr_t vmem = v_Member->val,
+           vdata = v_Data->val;
+    assert((
+               vmem.type == EXPR_TYPE_CONSTANT &&
+               vmem.v.constant.constant_type == CONSTANT_TYPE_ARRAY) &&
+           SF_FMT("Error: seg_fault"));
     
+    assert((
+               vdata.type == EXPR_TYPE_CONSTANT &&
+               vdata.v.constant.constant_type == CONSTANT_TYPE_INT) &&
+           SF_FMT("Error: Index must be an integer."));
+
+    array_t *_a_ref = PSG_GetArray_Ptr(vmem.v.constant.Array.index);
+
+    expr_t *__res = OSF_Malloc(sizeof(expr_t));
+    *__res = Sf_Array_Pop(_a_ref, vdata.v.constant.Int.value);
+
     return __res;
 }
 
@@ -456,7 +482,7 @@ void SFAdd_Protos_for_built_in_types(void)
     _native_dtype_array_method_push.v.Native.args[0] = (expr_t){
         .type = EXPR_TYPE_VARIABLE,
         .v = {.variable.name = "_Member"}};
-    
+
     _native_dtype_array_method_push.v.Native.args[1] = (expr_t){
         .type = EXPR_TYPE_VARIABLE,
         .v = {.variable.name = "data"}};
@@ -472,6 +498,45 @@ void SFAdd_Protos_for_built_in_types(void)
                 .function_s = {
                     .name = "push",
                     .index = _native_dtype_array_method_pushidx}}});
+
+    fun_t _native_dtype_array_method_pop = (fun_t){
+        .name = "pop",
+        .is_native = 1,
+        .arg_acceptance_count = -2,
+        .v = {
+            .Native = {
+                .arg_size = 2,
+                .args = OSF_Malloc(2 * sizeof(var_t)),
+                .f = Native_Proto_Array_pop}}};
+
+    _native_dtype_array_method_pop.v.Native.args[0] = (expr_t){
+        .type = EXPR_TYPE_VARIABLE,
+        .v = {.variable.name = "_Member"}};
+
+    _native_dtype_array_method_pop.v.Native.args[1] = (expr_t){
+        .type = EXPR_TYPE_VARIABLE,
+        .v = {.variable.name = "data"},
+        .next = OSF_Malloc(sizeof(expr_t))};
+
+    *(_native_dtype_array_method_pop.v.Native.args[1].next) = (expr_t){
+        .type = EXPR_TYPE_CONSTANT,
+        .v = {
+            .constant = {
+                .constant_type = CONSTANT_TYPE_INT,
+                .Int = {
+                    .value = -1}}}};
+
+    int _native_dtype_array_method_popidx = PSG_AddFunction(_native_dtype_array_method_pop);
+
+    AddDtypePrototype(
+        CONSTANT_TYPE_ARRAY,
+        "pop",
+        (expr_t){
+            .type = EXPR_TYPE_FUNCTION,
+            .v = {
+                .function_s = {
+                    .name = "pop",
+                    .index = _native_dtype_array_method_popidx}}});
 }
 
 const char *read_file(const char *path)

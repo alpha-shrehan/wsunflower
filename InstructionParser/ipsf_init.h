@@ -141,3 +141,21 @@ void _IPSF_DestClasses(mod_t *);
  * @return class_t* 
  */
 class_t *_IPSF_GetClass_fromIntTuple(int_tuple);
+
+/**
+ * @brief Execute logical arithmetic operations
+ * @param _lhs Left hand operand
+ * @param op_ty Operand
+ * @param _rhs Right hand operand
+ * @return expr_t 
+ */
+expr_t _IPSF_ExecLogicalArithmetic(expr_t, int, expr_t);
+
+/**
+ * @brief Check if entity is present in another entity
+ * @param lhs LHS
+ * @param rhs RHS
+ * @param mod Module
+ * @return expr_t Sunflower Boolean
+ */
+expr_t _IPSF_Entity_IsIn_Entity(expr_t, expr_t, mod_t *);
