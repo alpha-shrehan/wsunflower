@@ -13,6 +13,10 @@ static int PSG_ArrayHolders_Count;
 static mod_t **PSG_ModuleHolder;
 static int PSG_ModuleHolderSize;
 
+const char *_PSF_ImportPrefixes[] = {
+    "C:/Users/USER/Desktop/Sunflower/Lib/",
+    NULL};
+
 mod_t *SF_CreateModule(enum ModuleTypeEnum mod_type, psf_byte_array_t *ast_ref)
 {
     mod_t *new_mod = (mod_t *)OSF_Malloc(sizeof(mod_t));
@@ -27,6 +31,7 @@ mod_t *SF_CreateModule(enum ModuleTypeEnum mod_type, psf_byte_array_t *ast_ref)
     new_mod->returns = NULL;
     new_mod->class_objects = NULL;
     new_mod->class_objects_count = 0;
+    new_mod->path_prefix = NULL;
 
     switch (mod_type)
     {
@@ -307,9 +312,9 @@ expr_t SF_FrameExpr_fromByte(psf_byte_array_t *arr)
                     psf_byte_array_t *_rhs_arr = _PSF_newByteArray();
                     for (size_t j = i + 1; j < arr->size; j++)
                         PSF_AST_ByteArray_AddNode(_rhs_arr, arr->nodes[j]);
-                    
+
                     *(ret.v.in_clause._rhs) = SF_FrameExpr_fromByte(_rhs_arr);
-                    
+
                     OSF_Free(_rhs_arr->nodes);
                     OSF_Free(_rhs_arr);
                     doBreak = 1;
@@ -657,6 +662,35 @@ expr_t SF_FrameExpr_fromByte(psf_byte_array_t *arr)
             }
             else if (!strcmp(op, "("))
             {
+                // Bad code ahead
+                int pres_arr_size = arr->size;
+                arr->size = i + 1; // Skip '('
+                int gb = 0;
+
+                while (arr->size < pres_arr_size)
+                {
+                    psf_byte_t c = arr->nodes[arr->size];
+
+                    if (c.nval_type == AST_NVAL_TYPE_OPERATOR)
+                    {
+                        if (!strcmp(c.v.Operator.val, ")") && !gb)
+                        {
+                            arr->size++;
+                            break;
+                        }
+                        if (!strcmp(c.v.Operator.val, "(") ||
+                            !strcmp(c.v.Operator.val, "{") ||
+                            !strcmp(c.v.Operator.val, "["))
+                            gb++;
+                        else if (!strcmp(c.v.Operator.val, ")") ||
+                                 !strcmp(c.v.Operator.val, "}") ||
+                                 !strcmp(c.v.Operator.val, "]"))
+                            gb--;
+                    }
+
+                    arr->size++;
+                }
+
                 mod_t *temp_mod = SF_CreateModule(MODULE_TYPE_FILE, arr);
                 SF_FrameIT_fromAST(temp_mod);
 
@@ -677,7 +711,9 @@ expr_t SF_FrameExpr_fromByte(psf_byte_array_t *arr)
                 OSF_Free(BODY(temp_mod)->body);
                 OSF_Free(temp_mod->var_holds);
                 OSF_Free(temp_mod);
-                doBreak = 1;
+
+                i = arr->size - 1; // Get back to ')', so for loop can eat it
+                arr->size = pres_arr_size;
                 break;
             }
             else if (!strcmp(op, "["))
@@ -1142,6 +1178,51 @@ void SF_FrameIT_fromAST(mod_t *mod)
                 OSF_Free(val_arr);
                 i = j;
             }
+            else if (!strcmp(op, "["))
+            {
+                stmt_t new_stmt;
+                new_stmt.type = STATEMENT_TYPE_EXPR;
+                new_stmt.v.expr.expr = OSF_Malloc(sizeof(expr_t));
+
+                psf_byte_array_t *a = _PSF_newByteArray();
+                int gb = 0;
+                PSF_AST_ByteArray_AddNode(a, mod->ast->nodes[i]);
+                i++; // Eat '['
+
+                while (i < mod->ast->size)
+                {
+                    psf_byte_t c = mod->ast->nodes[i];
+
+                    if (c.nval_type == AST_NVAL_TYPE_OPERATOR)
+                    {
+                        if (!strcmp(c.v.Operator.val, "]") && !gb)
+                        {
+                            PSF_AST_ByteArray_AddNode(a, c);
+                            break;
+                        }
+
+                        if (!strcmp(c.v.Operator.val, "(") ||
+                            !strcmp(c.v.Operator.val, "{") ||
+                            !strcmp(c.v.Operator.val, "["))
+                            gb++;
+                        else if (!strcmp(c.v.Operator.val, ")") ||
+                                 !strcmp(c.v.Operator.val, "}") ||
+                                 !strcmp(c.v.Operator.val, "]"))
+                            gb--;
+                    }
+
+                    PSF_AST_ByteArray_AddNode(a, c);
+
+                    i++;
+                }
+
+                *(new_stmt.v.expr.expr) = SF_FrameExpr_fromByte(a);
+
+                OSF_Free(a->nodes);
+                OSF_Free(a);
+
+                PSG_AddStmt_toMod(mod, new_stmt);
+            }
         }
         break;
         case AST_NVAL_TYPE_IDENTIFIER:
@@ -1504,7 +1585,7 @@ void SF_FrameIT_fromAST(mod_t *mod)
                 }
                 else if (!strcmp(tok, "import"))
                 {
-                    new_stmt = _PSF_ConstructImportLine(mod->ast, i);
+                    new_stmt = _PSF_ConstructImportLine(mod, i);
                     PSG_AddStmt_toMod(mod, new_stmt);
 
                     int gb = 0;
@@ -2742,8 +2823,9 @@ array_t *PSG_GetArray_Ptr(int idx)
     return &((*PSG_GetArrays())[idx]);
 }
 
-stmt_t _PSF_ConstructImportLine(psf_byte_array_t *arr, int idx)
+stmt_t _PSF_ConstructImportLine(mod_t *mod, int idx)
 {
+    psf_byte_array_t *arr = mod->ast;
     stmt_t ret;
     ret.type = STATEMENT_TYPE_IMPORT;
     ret.v.import_s.alias = NULL;
@@ -2831,17 +2913,21 @@ stmt_t _PSF_ConstructImportLine(psf_byte_array_t *arr, int idx)
             name_path,
             (strlen(name_path) + 4) *
                 sizeof(char));
-
+        
         strcat(name_path, ".sf");
-        FILE *f_check = fopen(name_path, "r");
-        assert(f_check != NULL && SF_FMT("Error: imported file does not exist."));
-        if (f_check != NULL)
-            fclose(f_check);
+
+        name_path = _PSF_GetValidImportPath(name_path, mod->path_prefix != NULL ? 1 : 0, mod->path_prefix);
 
         ret.v.import_s.path = strdup(name_path);
         OSF_Free(name_path);
         ret.v.import_s.arg_count = 0;
         ret.v.import_s.args = NULL;
+
+        if (name_arr->size == 1 && ret.v.import_s.alias == NULL)
+        {
+            assert(name_arr->nodes[0].nval_type == AST_NVAL_TYPE_IDENTIFIER && SF_FMT("Error: Syntax Error"));
+            ret.v.import_s.alias = strdup(name_arr->nodes[0].v.Identifier.val);
+        }
 
         OSF_Free(name_arr->nodes);
         OSF_Free(name_arr);
@@ -2953,7 +3039,7 @@ stmt_t _PSF_ConstructSwitchStmt(psf_byte_array_t *arr, int idx, size_t *end_ptr)
 
                 if (_c.nval_type == AST_NVAL_TYPE_NEWLINE && !gb)
                     break;
-                
+
                 PSF_AST_ByteArray_AddNode(cc_arr, _c);
                 i++;
             }
@@ -2968,15 +3054,12 @@ stmt_t _PSF_ConstructSwitchStmt(psf_byte_array_t *arr, int idx, size_t *end_ptr)
             {
                 cc_arr->nodes++;
                 cc_arr->size--;
-                expr_t _r = (expr_t) {
+                expr_t _r = (expr_t){
                     .type = EXPR_TYPE_IN_CLAUSE,
                     .v = {
                         .in_clause = {
                             ._lhs = OSF_Malloc(sizeof(expr_t)),
-                            ._rhs = OSF_Malloc(sizeof(expr_t))
-                        }
-                    }
-                };
+                            ._rhs = OSF_Malloc(sizeof(expr_t))}}};
                 *(_r.v.in_clause._lhs) = *(ret.v.switch_case.condition);
                 *(_r.v.in_clause._rhs) = SF_FrameExpr_fromByte(cc_arr);
 
@@ -3027,11 +3110,127 @@ stmt_t _PSF_ConstructSwitchStmt(psf_byte_array_t *arr, int idx, size_t *end_ptr)
 
     if (end_ptr != NULL)
         (*end_ptr) += body->size;
-    
+
     OSF_Free(body->nodes);
     OSF_Free(body);
     OSF_Free(_cond_arr->nodes);
     OSF_Free(_cond_arr);
 
     return ret;
+}
+
+char *_PSF_GetValidImportPath(char *name_path, int extra_paths_count, ...)
+{
+    va_list vl;
+    va_start(vl, extra_paths_count);
+
+    char *new_path = NULL;
+    FILE *f_check = fopen(name_path, "r");
+    if (f_check != NULL)
+    {
+        new_path = strdup(name_path);
+        fclose(f_check);
+    }
+    else
+    {
+        char *fmt = OSF_Malloc((strlen(name_path) + 20) * sizeof(char));
+        // char pres_diff_c = name_path[strstr(name_path, ".sf") - name_path];
+        name_path[strstr(name_path, ".sf") - name_path] = '\0';
+        
+        sprintf(fmt, "%s/__main__.sf", name_path);
+
+        f_check = fopen(fmt, "r"); // check for file
+
+        if (f_check != NULL)
+        {
+            new_path = strdup(fmt);
+            OSF_Free(fmt);
+            fclose(f_check);
+        }
+        else
+        {
+            int i = 0, epc = extra_paths_count;
+
+            while (epc)
+            {
+                char *cpath = va_arg(vl, char *);
+                char *fmt = OSF_Malloc((strlen(cpath) + strlen(name_path) + 5) * sizeof(char));
+
+                sprintf(fmt, "%s%s.sf", cpath, name_path);
+
+                f_check = fopen(fmt, "r"); // check for file
+
+                if (f_check != NULL)
+                {
+                    new_path = strdup(fmt);
+                    OSF_Free(fmt);
+                    fclose(f_check);
+                    break;
+                }
+
+                OSF_Free(fmt);
+
+                fmt = OSF_Malloc((strlen(cpath) + strlen(name_path) + 20) * sizeof(char));
+                sprintf(fmt, "%s%s/__main__.sf", cpath, name_path);
+
+                f_check = fopen(fmt, "r"); // check for directry module
+
+                if (f_check != NULL)
+                {
+                    new_path = strdup(fmt);
+                    OSF_Free(fmt);
+                    fclose(f_check);
+                    break;
+                }
+
+                OSF_Free(fmt);
+
+                epc--;
+            }
+
+            if (new_path == NULL)
+            {
+                while (_PSF_ImportPrefixes[i] != NULL)
+                {
+                    char *fmt = OSF_Malloc((strlen(_PSF_ImportPrefixes[i]) + strlen(name_path) + 5) * sizeof(char));
+                    sprintf(fmt, "%s%s.sf", _PSF_ImportPrefixes[i], name_path);
+
+                    f_check = fopen(fmt, "r"); // check for file
+
+                    if (f_check != NULL)
+                    {
+                        new_path = strdup(fmt);
+                        OSF_Free(fmt);
+                        fclose(f_check);
+                        break;
+                    }
+
+                    OSF_Free(fmt);
+
+                    fmt = OSF_Malloc((strlen(_PSF_ImportPrefixes[i]) + strlen(name_path) + 20) * sizeof(char));
+                    sprintf(fmt, "%s%s/__main__.sf", _PSF_ImportPrefixes[i], name_path);
+
+                    f_check = fopen(fmt, "r"); // check for directry module
+
+                    if (f_check != NULL)
+                    {
+                        new_path = strdup(fmt);
+                        OSF_Free(fmt);
+                        fclose(f_check);
+                        break;
+                    }
+
+                    OSF_Free(fmt);
+
+                    i++;
+                }
+            }
+        }
+    }
+
+    if (new_path == NULL)
+        assert(0 && SF_FMT("Error: Imported file does not exist."));
+
+    va_end(vl);
+    return new_path;
 }

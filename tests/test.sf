@@ -1,16 +1,6 @@
-a = 15
+import algorithm as algo
 
-switch a
-    case in 1 to 10
-        write('Range [1,10)')
-    case in 11 to 20
-        write('Range [11, 20)')
-        switch a
-            case 15
-                write('Equality 15')
-            default
-                write('Inequality 15')
-    case in 21 to 30
-        write('Range [21, 30)')
-    default
-        write('Inequality')
+x = algo.LinkedList(0)
+for i in 1 to 10
+    x.add(i)
+write(x)

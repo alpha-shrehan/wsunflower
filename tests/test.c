@@ -13,6 +13,7 @@ int main(int argc, char const *argv[])
 
     mod_t *mod = SF_CreateModule(MODULE_TYPE_FILE, ast);
     SF_FrameIT_fromAST(mod);
+    // mod->path_prefix = _IPSF_GetDir_FromFilePath("tests/test.sf");
     
     SFAdd_Protos_for_built_in_types();
     SFBuiltIn_AddDefaultFunctions(mod);

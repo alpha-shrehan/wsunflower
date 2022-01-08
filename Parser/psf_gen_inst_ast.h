@@ -5,6 +5,7 @@
 
 #include <assert.h>
 #include <limits.h>
+#include <stdarg.h>
 #include <Object/osf_mem.h>
 #include <Parser/psf_gen_ast.h>
 
@@ -431,6 +432,7 @@ struct _mod
     psf_byte_array_t *ast;
     void *class_objects; // Cast to class_t *
     int class_objects_count;
+    char *path_prefix;
 };
 
 typedef struct _mod mod_t;
@@ -814,11 +816,11 @@ var_t *GetDtypePrototype_fromSymbolAndType(int, char *);
 
 /**
  * @brief Construct import line from bytecode
- * @param arr Array
+ * @param mod Module
  * @param idx Start index
  * @return stmt_t 
  */
-stmt_t _PSF_ConstructImportLine(psf_byte_array_t *, int);
+stmt_t _PSF_ConstructImportLine(mod_t *, int);
 
 /**
  * @brief Construct switch statement from bytecode
@@ -828,3 +830,11 @@ stmt_t _PSF_ConstructImportLine(psf_byte_array_t *, int);
  * @return stmt_t 
  */
 stmt_t _PSF_ConstructSwitchStmt(psf_byte_array_t *, int, size_t *);
+
+/**
+ * @brief Get valid import path
+ * @param name_path Path
+ * @param extra_paths_count Extra explicit paths
+ * @return char* 
+ */
+char *_PSF_GetValidImportPath(char *, int, ...);

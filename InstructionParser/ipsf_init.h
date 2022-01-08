@@ -159,3 +159,10 @@ expr_t _IPSF_ExecLogicalArithmetic(expr_t, int, expr_t);
  * @return expr_t Sunflower Boolean
  */
 expr_t _IPSF_Entity_IsIn_Entity(expr_t, expr_t, mod_t *);
+
+/**
+ * @brief Get directory from file path
+ * @param path Path
+ * @return char* 
+ */
+char *_IPSF_GetDir_FromFilePath(char *);

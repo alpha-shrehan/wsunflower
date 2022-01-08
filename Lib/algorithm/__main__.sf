@@ -1,0 +1,4 @@
+import linkedlist
+
+LinkedList = linkedlist.LinkedList
+linkedlist = None

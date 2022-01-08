@@ -2,5 +2,12 @@ x = 10
 y = 20
 z = 30
 
+class Test
+    val = None
+    z = 20
+    fun __main__(self, v)
+        self.val = v
+        write(Test)
+
 fun sum()
     return x + y + z

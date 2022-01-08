@@ -1,0 +1,18 @@
+class LinkedList
+    val = None
+    next = None
+
+    fun __main__(self, val = None, next = None)
+        self.val = val
+        self.next = next
+    
+    fun add(self, val)
+        if self.next == None
+            self.next = LinkedList(val)
+        else
+            self.next.add(val)
+    
+    fun __str__(self)
+        return [self.val, self.next]
+    
+    __stdout__ = __str__

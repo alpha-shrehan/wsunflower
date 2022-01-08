@@ -439,6 +439,33 @@ expr_t *Native_Proto_Array_pop(mod_t *mod_ref)
     return __res;
 }
 
+expr_t *Native_Proto_Array__str__(mod_t *mod_ref)
+{
+    var_t *v_Member = IPSF_GetVar_fromMod(mod_ref, "_Member", NULL);
+    assert(v_Member != NULL && SF_FMT("Error: seg_fault"));
+
+    expr_t vmem = v_Member->val;
+    assert((
+               vmem.type == EXPR_TYPE_CONSTANT &&
+               vmem.v.constant.constant_type == CONSTANT_TYPE_ARRAY) &&
+           SF_FMT("Error: seg_fault"));
+
+    char *orepr = _IPSF_ObjectRepr(vmem, 0);
+    char *resorepr = OSF_Malloc((strlen(orepr) + 3) * sizeof(char));
+    sprintf(resorepr, "\'%s\'", orepr);
+
+    OSF_IntFree(orepr);
+    expr_t *__res = OSF_Malloc(sizeof(expr_t));
+    *__res = (expr_t){
+        .type = EXPR_TYPE_CONSTANT,
+        .v = {
+            .constant = {
+                .constant_type = CONSTANT_TYPE_STRING,
+                .String = resorepr}}};
+
+    return __res;
+}
+
 void SFAdd_Protos_for_built_in_types(void)
 {
     // Int configs
@@ -537,6 +564,32 @@ void SFAdd_Protos_for_built_in_types(void)
                 .function_s = {
                     .name = "pop",
                     .index = _native_dtype_array_method_popidx}}});
+    
+    fun_t _native_dtype_array_method__str__ = (fun_t){
+        .name = "__str__",
+        .is_native = 1,
+        .arg_acceptance_count = 1,
+        .v = {
+            .Native = {
+                .arg_size = 1,
+                .args = OSF_Malloc(sizeof(var_t)),
+                .f = Native_Proto_Array__str__}}};
+
+    _native_dtype_array_method__str__.v.Native.args[0] = (expr_t){
+        .type = EXPR_TYPE_VARIABLE,
+        .v = {.variable.name = "_Member"}};
+
+    int _native_dtype_array_method__str__idx = PSG_AddFunction(_native_dtype_array_method__str__);
+
+    AddDtypePrototype(
+        CONSTANT_TYPE_ARRAY,
+        "__str__",
+        (expr_t){
+            .type = EXPR_TYPE_FUNCTION,
+            .v = {
+                .function_s = {
+                    .name = "__str__",
+                    .index = _native_dtype_array_method__str__idx}}});
 }
 
 const char *read_file(const char *path)

@@ -389,6 +389,7 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
             PSF_AST_Preprocess_fromByteArray(_ast);
 
             mod_t *imod = SF_CreateModule(MODULE_TYPE_FILE, _ast);
+            imod->path_prefix = _IPSF_GetDir_FromFilePath(curr.v.import_s.path);
             SF_FrameIT_fromAST(imod);
             BODY(imod)->name = curr.v.import_s.alias;
 
@@ -557,6 +558,28 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
                 {
                     f_args = OSF_Realloc(f_args, (expr->v.function_call.arg_size + 1) * sizeof(expr_t));
                     f_args[fa_beg++] = *(get_f.next);
+
+                    switch (get_f.next->type)
+                    {
+                    case EXPR_TYPE_CONSTANT:
+                    {
+                        switch (get_f.next->v.constant.constant_type)
+                        {
+                        case CONSTANT_TYPE_CLASS_OBJECT:
+                        {
+                            m_pass = _IPSF_GetClass_fromIntTuple(get_f.next->v.constant.ClassObj.idx)->mod;
+                        }
+                            break;
+                        
+                        default:
+                            break;
+                        }
+                    }
+                        break;
+                    
+                    default:
+                        break;
+                    }
                 }
                 else
                     m_pass = PSG_GetModule(get_f.next->v.module_s.index);
@@ -564,7 +587,7 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
 
             for (size_t j = 0; j < expr->v.function_call.arg_size; j++)
             {
-                f_args[j + fa_beg] = expr->v.function_call.args[j];
+                f_args[j + fa_beg] = IPSF_ReduceExpr_toConstant(mod, expr->v.function_call.args[j]);
             }
             fa_beg += expr->v.function_call.arg_size;
 
@@ -615,10 +638,10 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
                             .idx = cobj_idx}}}};
 
             for (size_t j = 0; j < expr->v.function_call.arg_size; j++)
-                cons_args[j + 1] = expr->v.function_call.args[j];
+                cons_args[j + 1] = IPSF_ReduceExpr_toConstant(mod, expr->v.function_call.args[j]);
 
             fun_t _c_main = (*PSG_GetFunctions())[var__main->val.v.function_s.index];
-            expr_t *main_res = _IPSF_CallFunction(_c_main, cons_args, expr->v.function_call.arg_size + 1, mod);
+            expr_t *main_res = _IPSF_CallFunction(_c_main, cons_args, expr->v.function_call.arg_size + 1, inst_c.mod);
 
             *RES = *cons_args; // self
 
@@ -1002,7 +1025,11 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
             if (_red.v.constant.constant_type == CONSTANT_TYPE_CLASS_OBJECT)
             {
                 int ef = IPSF_OK;
-                var_t *_v_ref = IPSF_GetVar_fromMod((_IPSF_GetClass_fromIntTuple(_red.v.constant.ClassObj.idx))->mod, expr->v.member_access.child, &ef);
+                class_t *__c = _IPSF_GetClass_fromIntTuple(_red.v.constant.ClassObj.idx);
+                mod_t *_pres_c_mod_parent = __c->mod->parent;
+                __c->mod->parent = NULL;
+                var_t *_v_ref = IPSF_GetVar_fromMod(__c->mod, expr->v.member_access.child, &ef);
+                __c->mod->parent = _pres_c_mod_parent;
 
                 assert(ef != IPSF_ERR_VAR_NOT_FOUND && SF_FMT("Error: Object has no member %s."));
                 _res = _v_ref->val;
@@ -1065,9 +1092,13 @@ IPSF_ExecVarDecl_fromStmt(mod_t *mod, stmt_t stmt, int *err)
 {
     struct __mod_child_varhold_s *varhold = NULL;
     assert(stmt.type == STATEMENT_TYPE_VAR_DECL && SF_FMT("stmt is not a var decl"));
+    mod_t *pres = mod->parent;
 
     expr_t reduced_val_cpy = *(stmt.v.var_decl.expr);
     reduced_val_cpy = IPSF_ReduceExpr_toConstant(mod, reduced_val_cpy);
+
+    if (mod->type == MODULE_TYPE_CLASS)
+        mod->parent = NULL;
 
     switch (stmt.v.var_decl.name->type)
     {
@@ -1130,6 +1161,7 @@ IPSF_ExecVarDecl_fromStmt(mod_t *mod, stmt_t stmt, int *err)
             case CONSTANT_TYPE_CLASS_OBJECT:
             {
                 class_t *_ref = _IPSF_GetClass_fromIntTuple(parent_red.v.constant.ClassObj.idx);
+                mod->parent = pres;
 
                 return IPSF_ExecVarDecl_fromStmt(_ref->mod, (stmt_t){.type = STATEMENT_TYPE_VAR_DECL, .v = {.var_decl = {.name = (expr_t *)(expr_t[]){(expr_t){.type = EXPR_TYPE_VARIABLE, .v = {.variable = {.name = OSF_strdup(symbol_name)}}}}, .expr = (expr_t *)(expr_t[]){reduced_val_cpy}}}}, NULL);
             }
@@ -1153,6 +1185,8 @@ IPSF_ExecVarDecl_fromStmt(mod_t *mod, stmt_t stmt, int *err)
 
     if (err != NULL)
         *err = IPSF_OK;
+
+    mod->parent = pres;
 
     return varhold;
 }
@@ -2447,4 +2481,18 @@ expr_t _IPSF_Entity_IsIn_Entity(expr_t lhs, expr_t rhs, mod_t *mod)
     }
 
     return res;
+}
+
+char *_IPSF_GetDir_FromFilePath(char *path)
+{
+    char *new_path = strrev(path);
+
+    while (1)
+        if (*new_path == '/' ||
+            *new_path == '\\')
+            break;
+        else
+            new_path++;
+
+    return strrev(new_path);
 }
