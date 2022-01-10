@@ -1,0 +1,11 @@
+class Iter
+    nval = None
+
+    fun __main__(self, val)
+        self.nval = val
+    
+    fun __iter_repr__(self)
+        return self.nval
+
+fun __main__(val)
+    return Iter(val)

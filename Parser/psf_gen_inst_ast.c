@@ -1018,11 +1018,9 @@ void SF_FrameIT_fromAST(mod_t *mod)
                     break;
                     case STATEMENT_TYPE_EXPR:
                     {
-                        if (last_stmt.v.expr.expr->type == EXPR_TYPE_MEMBER_ACCESS)
-                        {
-                            *(new_stmt.v.expr.expr->v.function_call.name) = *(last_stmt.v.expr.expr);
-                        }
+                        *(new_stmt.v.expr.expr->v.function_call.name) = *(last_stmt.v.expr.expr);
                     }
+                    break;
                     default:
                         break;
                     }
@@ -2913,12 +2911,12 @@ stmt_t _PSF_ConstructImportLine(mod_t *mod, int idx)
             name_path,
             (strlen(name_path) + 4) *
                 sizeof(char));
-        
+
         strcat(name_path, ".sf");
 
         name_path = _PSF_GetValidImportPath(name_path, mod->path_prefix != NULL ? 1 : 0, mod->path_prefix);
 
-        ret.v.import_s.path = strdup(name_path);
+        ret.v.import_s.path = OSF_strdup(name_path);
         OSF_Free(name_path);
         ret.v.import_s.arg_count = 0;
         ret.v.import_s.args = NULL;
@@ -2926,7 +2924,7 @@ stmt_t _PSF_ConstructImportLine(mod_t *mod, int idx)
         if (name_arr->size == 1 && ret.v.import_s.alias == NULL)
         {
             assert(name_arr->nodes[0].nval_type == AST_NVAL_TYPE_IDENTIFIER && SF_FMT("Error: Syntax Error"));
-            ret.v.import_s.alias = strdup(name_arr->nodes[0].v.Identifier.val);
+            ret.v.import_s.alias = OSF_strdup(name_arr->nodes[0].v.Identifier.val);
         }
 
         OSF_Free(name_arr->nodes);
@@ -3128,7 +3126,7 @@ char *_PSF_GetValidImportPath(char *name_path, int extra_paths_count, ...)
     FILE *f_check = fopen(name_path, "r");
     if (f_check != NULL)
     {
-        new_path = strdup(name_path);
+        new_path = OSF_strdup(name_path);
         fclose(f_check);
     }
     else
@@ -3136,14 +3134,14 @@ char *_PSF_GetValidImportPath(char *name_path, int extra_paths_count, ...)
         char *fmt = OSF_Malloc((strlen(name_path) + 20) * sizeof(char));
         // char pres_diff_c = name_path[strstr(name_path, ".sf") - name_path];
         name_path[strstr(name_path, ".sf") - name_path] = '\0';
-        
+
         sprintf(fmt, "%s/__main__.sf", name_path);
 
         f_check = fopen(fmt, "r"); // check for file
 
         if (f_check != NULL)
         {
-            new_path = strdup(fmt);
+            new_path = OSF_strdup(fmt);
             OSF_Free(fmt);
             fclose(f_check);
         }
@@ -3162,7 +3160,7 @@ char *_PSF_GetValidImportPath(char *name_path, int extra_paths_count, ...)
 
                 if (f_check != NULL)
                 {
-                    new_path = strdup(fmt);
+                    new_path = OSF_strdup(fmt);
                     OSF_Free(fmt);
                     fclose(f_check);
                     break;
@@ -3177,7 +3175,7 @@ char *_PSF_GetValidImportPath(char *name_path, int extra_paths_count, ...)
 
                 if (f_check != NULL)
                 {
-                    new_path = strdup(fmt);
+                    new_path = OSF_strdup(fmt);
                     OSF_Free(fmt);
                     fclose(f_check);
                     break;
@@ -3199,7 +3197,7 @@ char *_PSF_GetValidImportPath(char *name_path, int extra_paths_count, ...)
 
                     if (f_check != NULL)
                     {
-                        new_path = strdup(fmt);
+                        new_path = OSF_strdup(fmt);
                         OSF_Free(fmt);
                         fclose(f_check);
                         break;
@@ -3214,7 +3212,7 @@ char *_PSF_GetValidImportPath(char *name_path, int extra_paths_count, ...)
 
                     if (f_check != NULL)
                     {
-                        new_path = strdup(fmt);
+                        new_path = OSF_strdup(fmt);
                         OSF_Free(fmt);
                         fclose(f_check);
                         break;

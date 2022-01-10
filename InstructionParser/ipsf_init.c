@@ -23,6 +23,7 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
     for (size_t i = 0; i < BODY(mod)->body_size; i++)
     {
         stmt_t curr = BODY(mod)->body[i];
+        int doBreak = 0;
 
         switch (curr.type)
         {
@@ -82,8 +83,17 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                     if (*err != IPSF_OK)
                         return NULL;
 
+                if (body_mod->returns != NULL)
+                {
+                    mod->returns = body_mod->returns;
+                    doBreak = 1;
+                }
+
                 SF_Module_safeDelete(body_mod);
                 OSF_Free(body_mod);
+
+                if (doBreak)
+                    break;
             }
             else
             {
@@ -109,13 +119,24 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                             if (*err != IPSF_OK)
                                 return NULL;
 
+                        if (body_mod->returns != NULL)
+                        {
+                            mod->returns = body_mod->returns;
+                            doBreak = 1;
+                        }
+
                         SF_Module_safeDelete(body_mod);
                         OSF_Free(body_mod);
 
                         condition_satisfied = 1;
-                        break;
+
+                        if (doBreak)
+                            break;
                     }
                 }
+
+                if (doBreak)
+                    break;
 
                 if (!condition_satisfied)
                 {
@@ -132,8 +153,17 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                             if (*err != IPSF_OK)
                                 return NULL;
 
+                        if (body_mod->returns != NULL)
+                        {
+                            mod->returns = body_mod->returns;
+                            doBreak = 1;
+                        }
+
                         SF_Module_safeDelete(body_mod);
                         OSF_Free(body_mod);
+
+                        if (doBreak)
+                            break;
                     }
                 }
             }
@@ -159,9 +189,18 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
 
                 cond_r = IPSF_ReduceExpr_toConstant(mod, *(curr.v.while_stmt.condition));
 
+                if (w_mod->returns != NULL)
+                {
+                    mod->returns = w_mod->returns;
+                    doBreak = 1;
+                }
+
                 SF_Module_safeDelete(w_mod);
                 w_mod->var_holds_size = 0;
                 w_mod->var_holds = OSF_Malloc(sizeof(var_t));
+
+                if (doBreak)
+                    break;
                 // printf("[y]"); OSF_PrintHeapSize(); printf("\n");
             }
 
@@ -270,14 +309,155 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                     if (err != NULL)
                         if (*err != IPSF_OK)
                             return NULL;
+                    
+                    if (f_mod->returns != NULL)
+                    {
+                        mod->returns = f_mod->returns;
+                        doBreak = 1;
+                    }
 
                     SF_Module_safeDelete(f_mod);
                     f_mod->var_holds = OSF_Malloc(sizeof(var_t));
                     f_mod->var_holds_size = 0;
+
+                    if (doBreak)
+                        break;
                 }
             }
             break;
+            case CONSTANT_TYPE_CLASS_OBJECT:
+            {
+                class_t *_c_ref = _IPSF_GetClass_fromIntTuple(cond_red.v.constant.ClassObj.idx);
+                var_t *iter_conf = IPSF_GetVar_fromMod(_c_ref->mod, "__iter__", NULL);
+                assert(iter_conf != NULL && SF_FMT("Error: Class object is not an iterable."));
+                assert(iter_conf->val.type == EXPR_TYPE_FUNCTION && SF_FMT("Error: `__iter__' is not a function."));
+                fun_t _get_iter = (*PSG_GetFunctions())[iter_conf->val.v.function_s.index];
+                
+                expr_t *_itc_val = _IPSF_CallFunction(_get_iter, (expr_t *)(expr_t []) {cond_red}, 1, mod);
+                while (!_IPSF_IsDataType_None(*_itc_val))
+                {
+                    expr_t idx_val = *_itc_val;
+                    assert((
+                        idx_val.type == EXPR_TYPE_CONSTANT &&
+                        idx_val.v.constant.constant_type == CONSTANT_TYPE_CLASS_OBJECT
+                    ) && SF_FMT("Error: Iterative must be a class object."));
 
+                    class_t *c_get = _IPSF_GetClass_fromIntTuple(idx_val.v.constant.ClassObj.idx);
+                    var_t *get_iter_repr = IPSF_GetVar_fromMod(c_get->mod, "__iter_repr__", NULL);
+                    assert(get_iter_repr != NULL && SF_FMT("Error: Class object is not an iterative."));
+                    assert(get_iter_repr->val.type == EXPR_TYPE_FUNCTION && SF_FMT("Error: `__iter_repr' is not a function."));
+                    fun_t _get_iter_repr = (*PSG_GetFunctions())[get_iter_repr->val.v.function_s.index];
+
+                    expr_t *idx_v_dy = _IPSF_CallFunction(_get_iter_repr, (expr_t *)(expr_t []) {idx_val}, 1, mod);
+                    idx_val = *idx_v_dy;
+                    OSF_Free(idx_v_dy);
+
+                    switch (idx_val.v.constant.constant_type)
+                    {
+                    case CONSTANT_TYPE_ARRAY:
+                    {
+                        expr_t *arr_ref = ARRAY(idx_val.v.constant.Array.index).vals;
+                        int sz_ref = ARRAY(idx_val.v.constant.Array.index).len;
+
+                        if (curr.v.for_stmt.var_size == sz_ref)
+                        {
+                            for (size_t k = 0; k < sz_ref; k++)
+                            {
+                                _IPSF_AddVar_toModule(
+                                    f_mod,
+                                    curr.v.for_stmt.vars[k].name,
+                                    arr_ref[k]);
+                            }
+                        }
+                        else if (curr.v.for_stmt.var_size < sz_ref)
+                        {
+                            for (size_t k = 0; k < curr.v.for_stmt.var_size; k++)
+                            {
+                                _IPSF_AddVar_toModule(
+                                    f_mod,
+                                    curr.v.for_stmt.vars[k].name,
+                                    arr_ref[k]);
+                            }
+                        }
+                        else if (curr.v.for_stmt.var_size > sz_ref)
+                        {
+                            for (size_t k = 0; k < sz_ref; k++)
+                            {
+                                _IPSF_AddVar_toModule(
+                                    f_mod,
+                                    curr.v.for_stmt.vars[k].name,
+                                    arr_ref[k]);
+                            }
+                        }
+                    }
+                    break;
+
+                    default:
+                    {
+                        _IPSF_AddVar_toModule(
+                            f_mod,
+                            curr.v.for_stmt.vars[0].name,
+                            idx_val);
+                    }
+                    break;
+                    }
+
+                    // Add variables as a check afterhand
+                    for (size_t k = 0; k < curr.v.for_stmt.var_size; k++)
+                    {
+                        int err_c = IPSF_OK;
+                        var_t *pv_v = IPSF_GetVar_fromMod(f_mod, curr.v.for_stmt.vars[k].name, &err_c);
+
+                        /**
+                         * @brief Variables who could not fit to data
+                         * will not be declared in the module.
+                         * But ignoring them as symbols is unethical if such symbols
+                         * have a default value.
+                         * So, they will be added here ONLY IF they have a default value
+                         */
+                        if (err_c == IPSF_ERR_VAR_NOT_FOUND)
+                        {
+                            expr_t _vred = IPSF_ReduceExpr_toConstant(f_mod, curr.v.for_stmt.vars[k].val);
+
+                            if (!_IPSF_IsDataType_Void(_vred))
+                                _IPSF_AddVar_toModule(
+                                    f_mod,
+                                    curr.v.for_stmt.vars[k].name,
+                                    _vred);
+
+                            continue;
+                        }
+                    }
+
+                    BODY(f_mod)->body = curr.v.for_stmt.body;
+                    BODY(f_mod)->body_size = curr.v.for_stmt.body_size;
+
+                    OSF_Free(IPSF_ExecIT_fromMod(f_mod, err));
+
+                    if (err != NULL)
+                        if (*err != IPSF_OK)
+                            return NULL;
+                    
+                    if (f_mod->returns != NULL)
+                    {
+                        mod->returns = f_mod->returns;
+                        doBreak = 1;
+                    }
+
+                    SF_Module_safeDelete(f_mod);
+                    f_mod->var_holds = OSF_Malloc(sizeof(var_t));
+                    f_mod->var_holds_size = 0;
+
+                    if (doBreak)
+                        break;
+
+                    OSF_Free(_itc_val);
+                    _itc_val = _IPSF_CallFunction(_get_iter, (expr_t *)(expr_t []) {cond_red}, 1, mod);
+                }
+
+                OSF_Free(_itc_val);
+            }
+            break;
             default:
                 break;
             }
@@ -305,6 +485,13 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                 BODY(body_mod)->body_size = curr.v.repeat_stmt.body_size;
 
                 OSF_Free(IPSF_ExecIT_fromMod(body_mod, NULL));
+
+                if (body_mod->returns != NULL)
+                {
+                    mod->returns = body_mod->returns;
+                    doBreak = 1;
+                    break;
+                }
             }
 
             SF_Module_safeDelete(body_mod);
@@ -351,6 +538,7 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                 _cdef.object_count = 0;
                 _cdef.mod->parent = mod;
                 _cdef.killed = 0;
+                _cdef.objects = NULL;
 
                 BODY(_cdef.mod)->body = curr.v.class_decl.body;
                 BODY(_cdef.mod)->body_size = curr.v.class_decl.body_size;
@@ -472,6 +660,9 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
             break;
         }
 
+        if (doBreak)
+            break;
+
         // fflush(stdout);
         // fflush(stderr);
         // fflush(stdin);
@@ -569,14 +760,14 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
                         {
                             m_pass = _IPSF_GetClass_fromIntTuple(get_f.next->v.constant.ClassObj.idx)->mod;
                         }
-                            break;
-                        
+                        break;
+
                         default:
                             break;
                         }
                     }
-                        break;
-                    
+                    break;
+
                     default:
                         break;
                     }
@@ -641,12 +832,44 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
                 cons_args[j + 1] = IPSF_ReduceExpr_toConstant(mod, expr->v.function_call.args[j]);
 
             fun_t _c_main = (*PSG_GetFunctions())[var__main->val.v.function_s.index];
-            expr_t *main_res = _IPSF_CallFunction(_c_main, cons_args, expr->v.function_call.arg_size + 1, inst_c.mod);
+            expr_t *main_res = _IPSF_CallFunction(_c_main, cons_args, expr->v.function_call.arg_size + 1, mod);
 
             *RES = *cons_args; // self
 
             OSF_Free(cons_args);
             cons_args = NULL;
+        }
+        break;
+        case EXPR_TYPE_MODULE:
+        {
+            expr_t *f_args = OSF_Malloc(expr->v.function_call.arg_size * sizeof(expr_t));
+            int f_arg_size = 0;
+            mod_t *m_ref = PSG_GetModule(_red_nme.v.module_s.index);
+            mod_t *pres_mref_p = m_ref->parent;
+            m_ref->parent = mod;
+
+            for (size_t j = 0; j < expr->v.function_call.arg_size; j++)
+            {
+                expr_t rd = IPSF_ReduceExpr_toConstant(m_ref, expr->v.function_call.args[j]);
+                if (!_IPSF_IsDataType_Void(rd))
+                    f_args[f_arg_size++] = rd;
+            }
+
+            m_ref->parent = pres_mref_p;
+
+            var_t *get_main = IPSF_GetVar_fromMod(m_ref, "__main__", NULL);
+            assert(get_main != NULL && SF_FMT("Error: Module has no constructor."));
+            assert(get_main->val.type == EXPR_TYPE_FUNCTION && SF_FMT("Error: Module constructor is not a function."));
+            fun_t main_func = (*PSG_GetFunctions())[get_main->val.v.function_s.index];
+            expr_t *mf_res = _IPSF_CallFunction(main_func, f_args, f_arg_size, m_ref);
+
+            mf_res->next = OSF_Malloc(sizeof(expr_t));
+            *(mf_res->next) = _red_nme;
+
+            *RES = *mf_res;
+            
+            OSF_Free(mf_res);
+            OSF_Free(f_args);
         }
         break;
 
@@ -1478,22 +1701,48 @@ expr_t _IPSF_ExecUnaryArithmetic(mod_t *mod, expr_t *expr)
 
             if (*op == UNARY_OP_SUB)
             {
-                int idx_to_modify = constant_count;
+                if (i)
+                {
+                    int idx_to_modify = constant_count;
 
-                expr_t *m_ref = &(sibs[idx_to_modify]);
+                    expr_t *m_ref = &(sibs[idx_to_modify]);
 
-                assert((
-                           m_ref->type == EXPR_TYPE_CONSTANT &&
-                           (m_ref->v.constant.constant_type == CONSTANT_TYPE_INT ||
-                            m_ref->v.constant.constant_type == CONSTANT_TYPE_FLOAT)) &&
-                       SF_FMT("Error: Cannot use unary `-' on a non-number entity."));
+                    assert((
+                               m_ref->type == EXPR_TYPE_CONSTANT &&
+                               (m_ref->v.constant.constant_type == CONSTANT_TYPE_INT ||
+                                m_ref->v.constant.constant_type == CONSTANT_TYPE_FLOAT)) &&
+                           SF_FMT("Error: Cannot use unary `-' on a non-number entity."));
 
-                if (m_ref->v.constant.constant_type == CONSTANT_TYPE_INT)
-                    m_ref->v.constant.Int.value = -m_ref->v.constant.Int.value;
+                    if (m_ref->v.constant.constant_type == CONSTANT_TYPE_INT)
+                        m_ref->v.constant.Int.value = -m_ref->v.constant.Int.value;
+                    else
+                        m_ref->v.constant.Float.value = -m_ref->v.constant.Float.value;
+
+                    *op = UNARY_OP_ADD;
+                }
                 else
-                    m_ref->v.constant.Float.value = -m_ref->v.constant.Float.value;
+                {
+                    int idx_to_modify = constant_count;
 
-                *op = UNARY_OP_ADD;
+                    expr_t *m_ref = &(sibs[idx_to_modify]);
+
+                    assert((
+                               m_ref->type == EXPR_TYPE_CONSTANT &&
+                               (m_ref->v.constant.constant_type == CONSTANT_TYPE_INT ||
+                                m_ref->v.constant.constant_type == CONSTANT_TYPE_FLOAT)) &&
+                           SF_FMT("Error: Cannot use unary `-' on a non-number entity."));
+
+                    if (m_ref->v.constant.constant_type == CONSTANT_TYPE_INT)
+                        m_ref->v.constant.Int.value = -m_ref->v.constant.Int.value;
+                    else if (m_ref->v.constant.constant_type == CONSTANT_TYPE_FLOAT)
+                        m_ref->v.constant.Float.value = -m_ref->v.constant.Float.value;
+                    
+                    op++;
+                    operator_count--;
+                    order++;
+                    order_count--;
+                    i--;
+                }
             }
 
             operator_count++;
@@ -1761,7 +2010,7 @@ expr_t _IPSF_ExecUnaryArithmetic(mod_t *mod, expr_t *expr)
                             ic--;
                         }
                         strcat(_res_char, "\'");
-                        char *_r_c_cpy = strdup(_res_char);
+                        char *_r_c_cpy = OSF_strdup(_res_char);
                         OSF_Free(_res_char);
                         r.v.constant.String.value = _r_c_cpy;
                     }
@@ -2413,6 +2662,124 @@ expr_t _IPSF_ExecLogicalArithmetic(expr_t _lhs, int op_ty, expr_t _rhs)
         {
             _res.v.constant.Bool.value = 1;
         }
+    }
+    break;
+    case LOGICAL_OP_GEQ:
+    {
+        if (_lhs.type == _rhs.type)
+        {
+            switch (_lhs.type)
+            {
+            case EXPR_TYPE_CONSTANT:
+            {
+                if (_lhs.v.constant.constant_type ==
+                    _rhs.v.constant.constant_type)
+                {
+                    switch (_lhs.v.constant.constant_type)
+                    {
+                    case CONSTANT_TYPE_FLOAT:
+                    {
+                        if (_lhs.v.constant.Float.is_inf &&
+                            _rhs.v.constant.Float.is_inf)
+                            _res.v.constant.Bool.value = 0;
+                        else
+                            _res.v.constant.Bool.value = _lhs.v.constant.Float.value > _rhs.v.constant.Float.value;
+                    }
+                    break;
+                    case CONSTANT_TYPE_INT:
+                        _res.v.constant.Bool.value = _lhs.v.constant.Int.value > _rhs.v.constant.Int.value;
+                        break;
+                    case CONSTANT_TYPE_STRING:
+                        _res.v.constant.Bool.value = strcmp(_lhs.v.constant.String.value, _rhs.v.constant.String.value) > 0;
+                        break;
+                    default:
+                        assert(0 && SF_FMT("Unknown entities to compare"));
+                        _res.v.constant.Bool.value = 1;
+                        break;
+                    }
+                }
+                else
+                {
+                    // TODO: here
+                    _res.v.constant.Bool.value = 1;
+                }
+            }
+            break;
+
+            default:
+                break;
+            }
+        }
+        else
+        {
+            // TODO: here
+            _res.v.constant.Bool.value = 1;
+        }
+    }
+    break;
+    case LOGICAL_OP_LEQ:
+    {
+        if (_lhs.type == _rhs.type)
+        {
+            switch (_lhs.type)
+            {
+            case EXPR_TYPE_CONSTANT:
+            {
+                if (_lhs.v.constant.constant_type ==
+                    _rhs.v.constant.constant_type)
+                {
+                    switch (_lhs.v.constant.constant_type)
+                    {
+                    case CONSTANT_TYPE_FLOAT:
+                    {
+                        if (_lhs.v.constant.Float.is_inf &&
+                            _rhs.v.constant.Float.is_inf)
+                            _res.v.constant.Bool.value = 0;
+                        else
+                            _res.v.constant.Bool.value = _lhs.v.constant.Float.value < _rhs.v.constant.Float.value;
+                    }
+                    break;
+                    case CONSTANT_TYPE_INT:
+                        _res.v.constant.Bool.value = _lhs.v.constant.Int.value < _rhs.v.constant.Int.value;
+                        break;
+                    case CONSTANT_TYPE_STRING:
+                        _res.v.constant.Bool.value = strcmp(_lhs.v.constant.String.value, _rhs.v.constant.String.value) < 0;
+                        break;
+                    default:
+                        assert(0 && SF_FMT("Unknown entities to compare"));
+                        _res.v.constant.Bool.value = 1;
+                        break;
+                    }
+                }
+                else
+                {
+                    // TODO: here
+                    _res.v.constant.Bool.value = 1;
+                }
+            }
+            break;
+
+            default:
+                break;
+            }
+        }
+        else
+        {
+            // TODO: here
+            _res.v.constant.Bool.value = 1;
+        }
+    }
+    break;
+    case LOGICAL_OP_GEEQ:
+    {
+        _res = _IPSF_ExecLogicalArithmetic(_lhs, LOGICAL_OP_LEQ, _rhs);
+        _res.v.constant.Bool.value = abs(_res.v.constant.Bool.value - 1); // 0 becomes 1, 1 becomes 0
+    }
+    break;
+    case LOGICAL_OP_LEEQ:
+    {
+        _res = _IPSF_ExecLogicalArithmetic(_lhs, LOGICAL_OP_GEQ, _rhs);
+        _res.v.constant.Bool.value = abs(_res.v.constant.Bool.value - 1); // 0 becomes 1, 1 becomes 0
     }
     break;
 

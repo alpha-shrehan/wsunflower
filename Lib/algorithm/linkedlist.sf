@@ -12,6 +12,12 @@ class LinkedList
         else
             self.next.add(val)
     
+    fun height(self)
+        if self.next == None
+            return 1
+        else
+            return 1 + self.next.height()
+
     fun __str__(self)
         return [self.val, self.next]
     

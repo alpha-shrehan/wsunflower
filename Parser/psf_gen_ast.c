@@ -414,7 +414,7 @@ psf_byte_array_t *_PSF_newByteArray(void)
 
 char *_PSF_TrimSFStrImp(char *_str)
 {
-    char *_ccpy = strdup(_str);
+    char *_ccpy = OSF_strdup(_str);
     _ccpy++;
     _ccpy[strlen(_ccpy) - 1] = '\0';
 
