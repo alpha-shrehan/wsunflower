@@ -106,7 +106,7 @@ struct __mod_child_body_type_hold_s *_mod_body(mod_t *mod_ref)
 expr_t SF_FrameExpr_fromByte(psf_byte_array_t *arr)
 {
     expr_t ret;
-    int ret_now = 0;
+    int ret_now = 0, gb = 0;
 
     for (int i = arr->size - 1; i >= 0; i--)
     {
@@ -119,7 +119,7 @@ expr_t SF_FrameExpr_fromByte(psf_byte_array_t *arr)
         {
             const char *tok = curr.v.Identifier.val;
 
-            if (curr.v.Identifier.is_token)
+            if (curr.v.Identifier.is_token && !gb)
             {
                 if (!strcmp(tok, "for"))
                 {
@@ -149,6 +149,20 @@ expr_t SF_FrameExpr_fromByte(psf_byte_array_t *arr)
                     break;
                 }
             }
+        }
+        break;
+        case AST_NVAL_TYPE_OPERATOR:
+        {
+            const char *op = curr.v.Operator.val;
+
+            if (!strcmp(op, "(") ||
+                !strcmp(op, "{") ||
+                !strcmp(op, "["))
+                gb++;
+            else if (!strcmp(op, ")") ||
+                !strcmp(op, "}") ||
+                !strcmp(op, "]"))
+                gb--;
         }
         break;
 

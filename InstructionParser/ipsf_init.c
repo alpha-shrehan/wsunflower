@@ -1,4 +1,5 @@
 #include "ipsf_init.h"
+#include <Parser/psf_byte_t.h>
 #include <Parser/array_t.h>
 #include <builtins/built_in.h>
 
@@ -309,7 +310,7 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                     if (err != NULL)
                         if (*err != IPSF_OK)
                             return NULL;
-                    
+
                     if (f_mod->returns != NULL)
                     {
                         mod->returns = f_mod->returns;
@@ -332,23 +333,23 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                 assert(iter_conf != NULL && SF_FMT("Error: Class object is not an iterable."));
                 assert(iter_conf->val.type == EXPR_TYPE_FUNCTION && SF_FMT("Error: `__iter__' is not a function."));
                 fun_t _get_iter = (*PSG_GetFunctions())[iter_conf->val.v.function_s.index];
-                
-                expr_t *_itc_val = _IPSF_CallFunction(_get_iter, (expr_t *)(expr_t []) {cond_red}, 1, mod);
+
+                expr_t *_itc_val = _IPSF_CallFunction(_get_iter, (expr_t *)(expr_t[]){cond_red}, 1, _c_ref->mod->parent);
                 while (!_IPSF_IsDataType_None(*_itc_val))
                 {
                     expr_t idx_val = *_itc_val;
                     assert((
-                        idx_val.type == EXPR_TYPE_CONSTANT &&
-                        idx_val.v.constant.constant_type == CONSTANT_TYPE_CLASS_OBJECT
-                    ) && SF_FMT("Error: Iterative must be a class object."));
+                               idx_val.type == EXPR_TYPE_CONSTANT &&
+                               idx_val.v.constant.constant_type == CONSTANT_TYPE_CLASS_OBJECT) &&
+                           SF_FMT("Error: Iterative must be a class object."));
 
                     class_t *c_get = _IPSF_GetClass_fromIntTuple(idx_val.v.constant.ClassObj.idx);
                     var_t *get_iter_repr = IPSF_GetVar_fromMod(c_get->mod, "__iter_repr__", NULL);
                     assert(get_iter_repr != NULL && SF_FMT("Error: Class object is not an iterative."));
-                    assert(get_iter_repr->val.type == EXPR_TYPE_FUNCTION && SF_FMT("Error: `__iter_repr' is not a function."));
+                    assert(get_iter_repr->val.type == EXPR_TYPE_FUNCTION && SF_FMT("Error: `__iter_repr__' is not a function."));
                     fun_t _get_iter_repr = (*PSG_GetFunctions())[get_iter_repr->val.v.function_s.index];
 
-                    expr_t *idx_v_dy = _IPSF_CallFunction(_get_iter_repr, (expr_t *)(expr_t []) {idx_val}, 1, mod);
+                    expr_t *idx_v_dy = _IPSF_CallFunction(_get_iter_repr, (expr_t *)(expr_t[]){idx_val}, 1, c_get->mod->parent);
                     idx_val = *idx_v_dy;
                     OSF_Free(idx_v_dy);
 
@@ -437,7 +438,7 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                     if (err != NULL)
                         if (*err != IPSF_OK)
                             return NULL;
-                    
+
                     if (f_mod->returns != NULL)
                     {
                         mod->returns = f_mod->returns;
@@ -452,7 +453,7 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                         break;
 
                     OSF_Free(_itc_val);
-                    _itc_val = _IPSF_CallFunction(_get_iter, (expr_t *)(expr_t []) {cond_red}, 1, mod);
+                    _itc_val = _IPSF_CallFunction(_get_iter, (expr_t *)(expr_t[]){cond_red}, 1, _c_ref->mod->parent);
                 }
 
                 OSF_Free(_itc_val);
@@ -778,7 +779,10 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
 
             for (size_t j = 0; j < expr->v.function_call.arg_size; j++)
             {
-                f_args[j + fa_beg] = IPSF_ReduceExpr_toConstant(mod, expr->v.function_call.args[j]);
+                if (expr->v.function_call.args[j].type == EXPR_TYPE_INLINE_ASSIGNMENT)
+                    f_args[j + fa_beg] = expr->v.function_call.args[j];
+                else
+                    f_args[j + fa_beg] = IPSF_ReduceExpr_toConstant(mod, expr->v.function_call.args[j]);
             }
             fa_beg += expr->v.function_call.arg_size;
 
@@ -831,8 +835,9 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
             for (size_t j = 0; j < expr->v.function_call.arg_size; j++)
                 cons_args[j + 1] = IPSF_ReduceExpr_toConstant(mod, expr->v.function_call.args[j]);
 
+            mod_t *mpass = inst_c.mod->parent;
             fun_t _c_main = (*PSG_GetFunctions())[var__main->val.v.function_s.index];
-            expr_t *main_res = _IPSF_CallFunction(_c_main, cons_args, expr->v.function_call.arg_size + 1, mod);
+            expr_t *main_res = _IPSF_CallFunction(_c_main, cons_args, expr->v.function_call.arg_size + 1, mpass);
 
             *RES = *cons_args; // self
 
@@ -867,7 +872,7 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
             *(mf_res->next) = _red_nme;
 
             *RES = *mf_res;
-            
+
             OSF_Free(mf_res);
             OSF_Free(f_args);
         }
@@ -883,8 +888,8 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
         int err_c = 0;
         var_t *pvv = IPSF_GetVar_fromMod(mod, expr->v.variable.name, &err_c);
 
-        // if (err_c == IPSF_ERR_VAR_NOT_FOUND)
-        //     printf("varname[%s]\n", expr->v.variable.name);
+        if (err_c == IPSF_ERR_VAR_NOT_FOUND)
+            printf("varname[%s]\n", expr->v.variable.name);
         assert(err_c != IPSF_ERR_VAR_NOT_FOUND && SF_FMT("Error: Variable does not exist."));
 
         *RES = pvv->val;
@@ -1129,6 +1134,131 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
             }
         }
         break;
+        case CONSTANT_TYPE_CLASS_OBJECT:
+        {
+            class_t *_c_ref = _IPSF_GetClass_fromIntTuple(cond_red.v.constant.ClassObj.idx);
+            var_t *iter_conf = IPSF_GetVar_fromMod(_c_ref->mod, "__iter__", NULL);
+            assert(iter_conf != NULL && SF_FMT("Error: Class object is not an iterable."));
+            assert(iter_conf->val.type == EXPR_TYPE_FUNCTION && SF_FMT("Error: `__iter__' is not a function."));
+            fun_t _get_iter = (*PSG_GetFunctions())[iter_conf->val.v.function_s.index];
+
+            expr_t *_itc_val = _IPSF_CallFunction(_get_iter, (expr_t *)(expr_t[]){cond_red}, 1, _c_ref->mod->parent);
+            while (!_IPSF_IsDataType_None(*_itc_val))
+            {
+                expr_t idx_val = *_itc_val;
+                assert((
+                           idx_val.type == EXPR_TYPE_CONSTANT &&
+                           idx_val.v.constant.constant_type == CONSTANT_TYPE_CLASS_OBJECT) &&
+                       SF_FMT("Error: Iterative must be a class object."));
+
+                class_t *c_get = _IPSF_GetClass_fromIntTuple(idx_val.v.constant.ClassObj.idx);
+                var_t *get_iter_repr = IPSF_GetVar_fromMod(c_get->mod, "__iter_repr__", NULL);
+                assert(get_iter_repr != NULL && SF_FMT("Error: Class object is not an iterative."));
+                assert(get_iter_repr->val.type == EXPR_TYPE_FUNCTION && SF_FMT("Error: `__iter_repr__' is not a function."));
+                fun_t _get_iter_repr = (*PSG_GetFunctions())[get_iter_repr->val.v.function_s.index];
+
+                expr_t *idx_v_dy = _IPSF_CallFunction(_get_iter_repr, (expr_t *)(expr_t[]){idx_val}, 1, c_get->mod->parent);
+                idx_val = *idx_v_dy;
+                OSF_Free(idx_v_dy);
+
+                switch (idx_val.v.constant.constant_type)
+                {
+                case CONSTANT_TYPE_ARRAY:
+                {
+                    expr_t *arr_ref = ARRAY(idx_val.v.constant.Array.index).vals;
+                    int sz_ref = ARRAY(idx_val.v.constant.Array.index).len;
+
+                    if (expr->v.inline_for.var_size == sz_ref)
+                    {
+                        for (size_t k = 0; k < sz_ref; k++)
+                        {
+                            _IPSF_AddVar_toModule(
+                                f_mod,
+                                ((var_t *)expr->v.inline_for.vars)[k].name,
+                                arr_ref[k]);
+                        }
+                    }
+                    else if (expr->v.inline_for.var_size < sz_ref)
+                    {
+                        for (size_t k = 0; k < expr->v.inline_for.var_size; k++)
+                        {
+                            _IPSF_AddVar_toModule(
+                                f_mod,
+                                ((var_t *)expr->v.inline_for.vars)[k].name,
+                                arr_ref[k]);
+                        }
+                    }
+                    else if (expr->v.inline_for.var_size > sz_ref)
+                    {
+                        for (size_t k = 0; k < sz_ref; k++)
+                        {
+                            _IPSF_AddVar_toModule(
+                                f_mod,
+                                ((var_t *)expr->v.inline_for.vars)[k].name,
+                                arr_ref[k]);
+                        }
+                    }
+                }
+                break;
+
+                default:
+                {
+                    _IPSF_AddVar_toModule(
+                        f_mod,
+                        ((var_t *)expr->v.inline_for.vars)[0].name,
+                        idx_val);
+                }
+                break;
+                }
+
+                // Add variables as a check afterhand
+                for (size_t k = 0; k < expr->v.inline_for.var_size; k++)
+                {
+                    int err_c = IPSF_OK;
+                    var_t *pv_v = IPSF_GetVar_fromMod(f_mod, ((var_t *)expr->v.inline_for.vars)[k].name, &err_c);
+
+                    /**
+                     * @brief Variables who could not fit to data
+                     * will not be declared in the module.
+                     * But ignoring them as symbols is unethical if such symbols
+                     * have a default value.
+                     * So, they will be added here ONLY IF they have a default value
+                     */
+                    if (err_c == IPSF_ERR_VAR_NOT_FOUND)
+                    {
+                        expr_t _vred = IPSF_ReduceExpr_toConstant(f_mod, ((var_t *)expr->v.inline_for.vars)[k].val);
+
+                        if (!_IPSF_IsDataType_Void(_vred))
+                            _IPSF_AddVar_toModule(
+                                f_mod,
+                                ((var_t *)expr->v.inline_for.vars)[k].name,
+                                _vred);
+
+                        continue;
+                    }
+                }
+
+                expr_t _ex_res = IPSF_ReduceExpr_toConstant(f_mod, *(expr->v.inline_for.body));
+
+                if (ARRAY(res.v.constant.Array.index).len)
+                    ARRAY(res.v.constant.Array.index).vals = OSF_Realloc(
+                        ARRAY(res.v.constant.Array.index).vals,
+                        (ARRAY(res.v.constant.Array.index).len + 1) *
+                            sizeof(expr_t));
+
+                ARRAY(res.v.constant.Array.index).vals[(PSG_GetArray_Ptr(res.v.constant.Array.index)->len)++] = _ex_res;
+
+                SF_Module_safeDelete(f_mod);
+                f_mod->var_holds = OSF_Malloc(sizeof(var_t));
+                f_mod->var_holds_size = 0;
+
+                OSF_Free(_itc_val);
+                _itc_val = _IPSF_CallFunction(_get_iter, (expr_t *)(expr_t[]){cond_red}, 1, _c_ref->mod->parent);
+            }
+
+            OSF_Free(_itc_val);
+        }
+        break;
         default:
             break;
         }
@@ -1262,6 +1392,8 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
             else
             {
                 var_t *gv = GetDtypePrototype_fromSymbolAndType(_red.v.constant.constant_type, expr->v.member_access.child);
+                // if (gv == NULL)
+                //     printf("varname[%s]\n", expr->v.member_access.child);
                 assert(gv != NULL && SF_FMT("Error: Object has no member '%s'."));
 
                 _res = gv->val;
@@ -1736,7 +1868,7 @@ expr_t _IPSF_ExecUnaryArithmetic(mod_t *mod, expr_t *expr)
                         m_ref->v.constant.Int.value = -m_ref->v.constant.Int.value;
                     else if (m_ref->v.constant.constant_type == CONSTANT_TYPE_FLOAT)
                         m_ref->v.constant.Float.value = -m_ref->v.constant.Float.value;
-                    
+
                     op++;
                     operator_count--;
                     order++;
@@ -2327,7 +2459,6 @@ expr_t *_IPSF_CallFunction(fun_t fun_s, expr_t *args, int arg_size, mod_t *mod)
 
     if (fun_s.is_native)
     {
-        fun_mod->parent = NULL;
         for (size_t j = 0; j < fun_s.v.Native.arg_size; j++)
         {
             expr_t *texpr = OSF_Malloc(sizeof(expr_t));
@@ -2359,25 +2490,27 @@ expr_t *_IPSF_CallFunction(fun_t fun_s, expr_t *args, int arg_size, mod_t *mod)
 
             OSF_Free(texpr);
         }
-        fun_mod->parent = mod;
     }
     else
     {
-        fun_mod->parent = NULL;
         for (size_t j = 0; j < fun_s.v.Coded.arg_size; j++)
         {
             _IPSF_AddVar_toModule(fun_mod, fun_s.v.Coded.args[j].name, fun_s.v.Coded.args[j].val);
         }
-        fun_mod->parent = mod;
     }
 
     fun_mod->parent = mod;
     for (size_t j = 0; j < arg_size; j++)
     {
-        expr_t temp = IPSF_ReduceExpr_toConstant(fun_mod, args[j]);
+        if (args[j].type == EXPR_TYPE_INLINE_ASSIGNMENT)
+        {
+            expr_t temp = IPSF_ReduceExpr_toConstant(fun_mod, args[j]);
 
-        // if (!_IPSF_IsDataType_Void(temp))
-        _collectivise_args[_collectivise_args_count++] = temp;
+            // if (!_IPSF_IsDataType_Void(temp))
+            _collectivise_args[_collectivise_args_count++] = temp;
+        }
+        else
+            _collectivise_args[_collectivise_args_count++] = args[j];
     }
 
     _cargs_without_voids = _PSF_RemoveVoidsFromExprArray(_collectivise_args, _collectivise_args_count, &_cargs_without_voids_size);
