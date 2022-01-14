@@ -1,7 +1,6 @@
 #include "osf_mem.h"
 
 #define __DOSF_PRINT_HEAP_TRACE__ 0
-// #define SF_DEBUG
 
 OSF_MemTree *OSF_MainMemTree = NULL;
 unsigned long OSF_LastHeapSize = 0;

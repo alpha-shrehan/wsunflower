@@ -1,8 +1,17 @@
-import algorithm as algo
+class array
+    vals = []
+    mode = ''
+    
+    fun __main__(self, vals, mode = 'any')
+        if mode != 'any'
+            assert mode in 'fisdb', "mode must be one of 'f','i','s','b','d' or 'any'"
+        self.mode = mode
+        self.vals = vals
+    
+    fun __str__(self)
+        return self.vals
+    
+    __stdout__ = __str__
 
-x = algo.LinkedList(0)
-for i in 1 to 100
-    x.add(i)
-
-for i in x
-    write(i)
+a = array(mode='i', vals=[1,2,3])
+write(a)

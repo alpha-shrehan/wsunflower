@@ -1,0 +1,5 @@
+import binarytree
+import bst
+
+BinaryTree = binarytree.BinaryTree
+BinarySearchTree = bst.BinarySearchTree

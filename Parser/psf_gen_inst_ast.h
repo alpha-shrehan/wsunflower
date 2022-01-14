@@ -254,7 +254,8 @@ enum StatementTypeEnum
     STATEMENT_TYPE_COMMENT,
     STATEMENT_TYPE_VAR_REF,
     STATEMENT_TYPE_REPEAT,
-    STATEMENT_TYPE_SWITCH
+    STATEMENT_TYPE_SWITCH,
+    STATEMENT_TYPE_ASSERT
 };
 
 struct _conditional_struct
@@ -392,6 +393,12 @@ struct _stmt
             int cases_count;
             
         } switch_case;
+
+        struct
+        {
+            expr_t *condition;
+            expr_t *message;
+        } assert_stmt;
 
     } v;
 };

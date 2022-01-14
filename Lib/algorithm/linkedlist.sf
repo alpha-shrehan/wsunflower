@@ -5,7 +5,7 @@ class LinkedList
     next = None
     _iter_count = 0
     len = 1
-    llist = [0]
+    llist = None
     _last_node = None
 
     fun __main__(self, val = None, next = None)

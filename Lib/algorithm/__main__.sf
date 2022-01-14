@@ -1,3 +1,6 @@
 import linkedlist
+import tree
 
 LinkedList = linkedlist.LinkedList
+BinaryTree = tree.BinaryTree
+BinarySearchTree = tree.BinarySearchTree

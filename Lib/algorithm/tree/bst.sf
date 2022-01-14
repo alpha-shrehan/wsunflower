@@ -1,0 +1,82 @@
+class BinarySearchTree
+    val = None
+    left = None
+    right = None
+
+    fun __main__(self, val)
+        self.val = val
+        self.left = None
+        self.right = None
+    
+    fun insert(self, val)
+        if val == self.val
+            return
+        if val < self.val
+            if self.left == None
+                self.left = BinarySearchTree(val)
+            else
+                self.left.insert(val)
+        else
+            if self.right == None
+                self.right = BinarySearchTree(val)
+            else
+                self.right.insert(val)
+    
+    fun contains(self, val)
+        if val == self.val
+            return True
+        if val < self.val
+            if self.left == None
+                return False
+            else
+                return self.left.contains(val)
+        else
+            if self.right == None
+                return False
+            else
+                return self.right.contains(val)
+    
+    fun getMin(self)
+        if self.left == None
+            return self.val
+        else
+            return self.left.getMin()
+    
+    fun getMax(self)
+        if self.right == None
+            return self.val
+        else
+            return self.right.getMax()
+    
+    fun getHeight(self)
+        if self.left == None
+            if self.right == None
+                return 0
+        if self.left == None
+            return 1 + self.right.getHeight()
+        if self.right == None
+            return 1 + self.left.getHeight()
+        
+        v = self.left.getHeight()
+        w = self.right.getHeight()
+        if v > w
+            return 1 + v
+        else
+            return 1 + w
+    
+    fun isBalanced(self)
+        if self.left == None
+            if self.right == None
+                return True
+        if self.left == None
+            return self.right.getHeight() <= 1
+        if self.right == None
+            return self.left.getHeight() <= 1
+        
+        v = self.left.getHeight()
+        w = self.right.getHeight()
+        if v > w
+            return (v - w) <= 1
+        else
+            return (w - v) <= 1
+    

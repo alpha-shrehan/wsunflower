@@ -22,6 +22,7 @@ const char *PSF_ValidTokens[] = {
     "switch",
     "case",
     "default",
+    "assert",
     NULL};
 
 const char *PSF_ValidDataTypes[] = {

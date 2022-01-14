@@ -1,0 +1,55 @@
+class BinaryTree
+    val = None
+    left = None
+    right = None
+
+    fun __main__(self, val)
+        self.val = val
+        self.left = None
+        self.right = None
+    
+    fun insertLeft(self, val)
+        if self.left == None
+            self.left = BinaryTree(val)
+        else
+            t = BinaryTree(val)
+            t.left = self.left
+            self.left = t
+
+    fun insertRight(self, val)
+        if self.right == None
+            self.right = BinaryTree(val)
+        else
+            t = BinaryTree(val)
+            t.right = self.right
+            self.right = t
+    
+    fun preorder(self)
+        write(self.val)
+        if self.left
+            self.left.preorder()
+        if self.right
+            self.right.preorder()
+    
+    fun inorder(self)
+        if self.left
+            self.left.inorder()
+        write(self.val)
+        if self.right
+            self.right.inorder()
+    
+    fun postorder(self)
+        if self.left
+            self.left.postorder()
+        if self.right
+            self.right.postorder()
+        write(self.val)
+    
+    fun search(self, val)
+        if self.val == val
+            return True
+        else if self.left and self.left.search(val)
+            return True
+        else if self.right and self.right.search(val)
+            return True
+        return False

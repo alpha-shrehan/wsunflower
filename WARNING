@@ -1,0 +1,15 @@
+Never declare arrays in class variables if they are not a constant
+for example, 
+
+class List
+    a = [] <----------------- WRONG
+    ...
+
+This should be avoided at all costs.
+The walkaround for this is to declare them in the __main__ method.
+
+class List
+    a = None
+
+    def __main__(self)
+        self.a = [] <----------------- CORRECT

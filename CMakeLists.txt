@@ -8,6 +8,8 @@ add_subdirectory(tests)
 include_directories(.)
 include_directories(Include/gc)
 
+# add_compile_options(-O3)
+
 FILE(GLOB_RECURSE SFCSOURCES *.c)
 
 add_library(sunflower ${SFCSOURCES})

@@ -35,7 +35,8 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                 if (*err != IPSF_OK)
                     return NULL;
 
-            *RET = expr->val;
+            if (expr != NULL)
+                *RET = expr->val;
         }
         break;
         case STATEMENT_TYPE_VAR_REF:
@@ -656,6 +657,26 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
             }
         }
         break;
+        case STATEMENT_TYPE_ASSERT:
+        {
+            expr_t _c_red = IPSF_ReduceExpr_toConstant(mod, *(curr.v.assert_stmt.condition));
+
+            if (!_PSF_EntityIsTrue(_c_red))
+            {
+                if (curr.v.assert_stmt.message != NULL)
+                {
+                    expr_t _m_red = IPSF_ReduceExpr_toConstant(mod, *(curr.v.assert_stmt.message));
+                    printf("%s\n", _IPSF_ObjectRepr(_m_red, 0));
+                }
+                else
+                {
+                    assert(0 && SF_FMT("Error: Assertion Error."));
+                }
+
+                exit(0);
+            }
+        }
+        break;
 
         default:
             break;
@@ -735,11 +756,13 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
         {
             // assert(IPSF_GetVar_fromMod(mod, fun_name, err) != NULL && SF_FMT("Error: Variable does not exist."));
             // expr_t get_f = IPSF_GetVar_fromMod(mod, fun_name, err)->val;
+            int *gfsz = PSG_GetFunctionsSize();
+            fun_t **gffs = PSG_GetFunctions();
             mod_t *m_pass = mod;
             expr_t get_f = _red_nme;
-            assert(get_f.v.function_s.index < *PSG_GetFunctionsSize() && SF_FMT("Error: seg_fault"));
+            assert(get_f.v.function_s.index < *gfsz && SF_FMT("Error: seg_fault"));
 
-            fun_t fun_s = (*PSG_GetFunctions())[get_f.v.function_s.index];
+            fun_t fun_s = (*gffs)[get_f.v.function_s.index];
 
             expr_t *f_args = OSF_Malloc((expr->v.function_call.arg_size) * sizeof(expr_t));
             int fa_beg = 0;
@@ -780,7 +803,10 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
             for (size_t j = 0; j < expr->v.function_call.arg_size; j++)
             {
                 if (expr->v.function_call.args[j].type == EXPR_TYPE_INLINE_ASSIGNMENT)
+                {
                     f_args[j + fa_beg] = expr->v.function_call.args[j];
+                    *(f_args[j + fa_beg].v.inline_assignment.rhs) = IPSF_ReduceExpr_toConstant(mod, *(f_args[j + fa_beg].v.inline_assignment.rhs));
+                }
                 else
                     f_args[j + fa_beg] = IPSF_ReduceExpr_toConstant(mod, expr->v.function_call.args[j]);
             }
@@ -833,7 +859,15 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
                             .idx = cobj_idx}}}};
 
             for (size_t j = 0; j < expr->v.function_call.arg_size; j++)
-                cons_args[j + 1] = IPSF_ReduceExpr_toConstant(mod, expr->v.function_call.args[j]);
+            {
+                if (expr->v.function_call.args[j].type == EXPR_TYPE_INLINE_ASSIGNMENT)
+                {
+                    cons_args[j + 1] = expr->v.function_call.args[j];
+                    *(cons_args[j + 1].v.inline_assignment.rhs) = IPSF_ReduceExpr_toConstant(mod, *(cons_args[j + 1].v.inline_assignment.rhs));
+                }
+                else
+                    cons_args[j + 1] = IPSF_ReduceExpr_toConstant(mod, expr->v.function_call.args[j]);
+            }
 
             mod_t *mpass = inst_c.mod->parent;
             fun_t _c_main = (*PSG_GetFunctions())[var__main->val.v.function_s.index];
@@ -1392,8 +1426,8 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
             else
             {
                 var_t *gv = GetDtypePrototype_fromSymbolAndType(_red.v.constant.constant_type, expr->v.member_access.child);
-                // if (gv == NULL)
-                //     printf("varname[%s]\n", expr->v.member_access.child);
+                if (gv == NULL)
+                    printf("varname[%s]\n", expr->v.member_access.child);
                 assert(gv != NULL && SF_FMT("Error: Object has no member '%s'."));
 
                 _res = gv->val;
@@ -1448,9 +1482,7 @@ IPSF_ExecVarDecl_fromStmt(mod_t *mod, stmt_t stmt, int *err)
     struct __mod_child_varhold_s *varhold = NULL;
     assert(stmt.type == STATEMENT_TYPE_VAR_DECL && SF_FMT("stmt is not a var decl"));
     mod_t *pres = mod->parent;
-
-    expr_t reduced_val_cpy = *(stmt.v.var_decl.expr);
-    reduced_val_cpy = IPSF_ReduceExpr_toConstant(mod, reduced_val_cpy);
+    expr_t reduced_val_cpy = IPSF_ReduceExpr_toConstant(mod, *(stmt.v.var_decl.expr));
 
     if (mod->type == MODULE_TYPE_CLASS)
         mod->parent = NULL;
@@ -1533,6 +1565,58 @@ IPSF_ExecVarDecl_fromStmt(mod_t *mod, stmt_t stmt, int *err)
         }
     }
     break;
+    case EXPR_TYPE_INDEX_OP:
+    {
+        expr_t *c = stmt.v.var_decl.name;
+        expr_t ent_red = IPSF_ReduceExpr_toConstant(mod, *(c->v.index_op.entity)),
+               idx_red = IPSF_ReduceExpr_toConstant(mod, *(c->v.index_op.index));
+
+        switch (ent_red.type)
+        {
+        case EXPR_TYPE_CONSTANT:
+        {
+            switch (ent_red.v.constant.constant_type)
+            {
+            case CONSTANT_TYPE_ARRAY:
+            {
+                array_t *_a_ref = PSG_GetArray_Ptr(ent_red.v.constant.Array.index);
+                assert(((
+                            idx_red.type == EXPR_TYPE_CONSTANT &&
+                            idx_red.v.constant.constant_type == CONSTANT_TYPE_INT) ||
+                        _IPSF_IsDataType_None(idx_red)) &&
+                       SF_FMT("Error: Array index must be an intger"));
+
+                if (_IPSF_IsDataType_None(idx_red))
+                {
+                    if (_a_ref->len)
+                        _a_ref->vals = OSF_Realloc(_a_ref->vals, (_a_ref->len + 1) * sizeof(expr_t));
+                    
+                    _a_ref->vals[_a_ref->len++] = reduced_val_cpy;
+                }
+                else
+                {
+                    int idx = idx_red.v.constant.Int.value;
+                    assert(idx < _a_ref->len && SF_FMT("Error: Array index out of range."));
+
+                    if (idx < 0)
+                        idx += _a_ref->len;
+
+                    _a_ref->vals[idx] = reduced_val_cpy;
+                }
+            }
+            break;
+
+            default:
+                break;
+            }
+        }
+        break;
+
+        default:
+            break;
+        }
+    }
+    break;
 
     default:
         break;
@@ -1552,7 +1636,11 @@ IPSF_GetVar_fromMod(mod_t *mod, const char *name, int *err)
     struct __mod_child_varhold_s *varhold = NULL;
 
     if (mod == NULL)
+    {
+        if (err != NULL)
+            *err = IPSF_ERR_VAR_NOT_FOUND;
         return varhold;
+    }
 
     for (size_t i = 0; i < mod->var_holds_size; i++)
     {
@@ -2503,12 +2591,7 @@ expr_t *_IPSF_CallFunction(fun_t fun_s, expr_t *args, int arg_size, mod_t *mod)
     for (size_t j = 0; j < arg_size; j++)
     {
         if (args[j].type == EXPR_TYPE_INLINE_ASSIGNMENT)
-        {
-            expr_t temp = IPSF_ReduceExpr_toConstant(fun_mod, args[j]);
-
-            // if (!_IPSF_IsDataType_Void(temp))
-            _collectivise_args[_collectivise_args_count++] = temp;
-        }
+            _collectivise_args[_collectivise_args_count++] = IPSF_ReduceExpr_toConstant(fun_mod, args[j]);
         else
             _collectivise_args[_collectivise_args_count++] = args[j];
     }

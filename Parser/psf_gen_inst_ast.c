@@ -160,8 +160,8 @@ expr_t SF_FrameExpr_fromByte(psf_byte_array_t *arr)
                 !strcmp(op, "["))
                 gb++;
             else if (!strcmp(op, ")") ||
-                !strcmp(op, "}") ||
-                !strcmp(op, "]"))
+                     !strcmp(op, "}") ||
+                     !strcmp(op, "]"))
                 gb--;
         }
         break;
@@ -833,6 +833,9 @@ expr_t SF_FrameExpr_fromByte(psf_byte_array_t *arr)
                         i++;
                     }
 
+                    // if (!_arr.len)
+                    //     _arr.evaluated = 1; // Array need not be unmaked for evaluation if it's initially empty
+
                     ret.v.constant.Array.index = PSG_AddArray(_arr);
                 }
             }
@@ -840,17 +843,22 @@ expr_t SF_FrameExpr_fromByte(psf_byte_array_t *arr)
             {
                 expr_t ret_cpy;
                 psf_byte_array_t *rcarr = _PSF_newByteArray();
+
                 for (size_t j = 0; j < i; j++)
                     PSF_AST_ByteArray_AddNode(rcarr, arr->nodes[j]);
+
                 ret_cpy = SF_FrameExpr_fromByte(rcarr);
                 OSF_Free(rcarr->nodes);
                 OSF_Free(rcarr);
+
                 ret.type = EXPR_TYPE_MEMBER_ACCESS;
                 ret.v.member_access.parent = OSF_Malloc(sizeof(expr_t));
                 *(ret.v.member_access.parent) = ret_cpy;
+
                 assert(
                     arr->nodes[i + 1].nval_type == AST_NVAL_TYPE_IDENTIFIER &&
                     SF_FMT("Error: Member access operator (.) requires member name to be an identifier."));
+
                 ret.v.member_access.child = (char *)OSF_strdup(arr->nodes[i + 1].v.Identifier.val);
                 i++;
             }
@@ -1199,6 +1207,7 @@ void SF_FrameIT_fromAST(mod_t *mod)
                 psf_byte_array_t *a = _PSF_newByteArray();
                 int gb = 0;
                 PSF_AST_ByteArray_AddNode(a, mod->ast->nodes[i]);
+                int pres_i = i;
                 i++; // Eat '['
 
                 while (i < mod->ast->size)
@@ -1232,6 +1241,45 @@ void SF_FrameIT_fromAST(mod_t *mod)
 
                 OSF_Free(a->nodes);
                 OSF_Free(a);
+
+                if (mod->ast->nodes[pres_i - 1].nval_type != AST_NVAL_TYPE_NEWLINE &&
+                    mod->ast->nodes[pres_i - 1].nval_type != AST_NVAL_TYPE_TABSPACE)
+                {
+                    // Index op
+                    stmt_t _st;
+                    _st.type = STATEMENT_TYPE_EXPR;
+                    _st.v.expr.expr = OSF_Malloc(sizeof(expr_t));
+                    _st.v.expr.expr->type = EXPR_TYPE_INDEX_OP;
+                    if (BODY(mod)->body[BODY(mod)->body_size - 1].type == STATEMENT_TYPE_EXPR)
+                        _st.v.expr.expr->v.index_op.entity = BODY(mod)->body[BODY(mod)->body_size - 1].v.expr.expr;
+                    else if (BODY(mod)->body[BODY(mod)->body_size - 1].type == STATEMENT_TYPE_VAR_REF)
+                    {
+                        _st.v.expr.expr->v.index_op.entity = OSF_Malloc(sizeof(expr_t));
+                        _st.v.expr.expr->v.index_op.entity->type = EXPR_TYPE_VARIABLE;
+                        _st.v.expr.expr->v.index_op.entity->v.variable.name = OSF_strdup(BODY(mod)->body[BODY(mod)->body_size - 1].v.var_ref.name);
+                    }
+                    else
+                        assert(0 && SF_FMT("Error: Syntax Error."));
+
+                    _st.v.expr.expr->v.index_op.index = OSF_Malloc(sizeof(expr_t));
+                    *(_st.v.expr.expr->v.index_op.index) = *(new_stmt.v.expr.expr);
+
+                    assert((_st.v.expr.expr->v.index_op.index->type == EXPR_TYPE_CONSTANT &&
+                            _st.v.expr.expr->v.index_op.index->v.constant.constant_type == CONSTANT_TYPE_ARRAY) &&
+                           SF_FMT("Error: Syntax Error"));
+
+                    if (ARRAY(_st.v.expr.expr->v.index_op.index->v.constant.Array.index).len)
+                        *(_st.v.expr.expr->v.index_op.index) = ARRAY(_st.v.expr.expr->v.index_op.index->v.constant.Array.index).vals[0];
+                    else
+                        *(_st.v.expr.expr->v.index_op.index) = (expr_t){
+                            .type = EXPR_TYPE_CONSTANT,
+                            .v = {
+                                .constant = {
+                                    .constant_type = CONSTANT_TYPE_DTYPE,
+                                    .DType = {
+                                        .type = DATA_TYPE_NONE}}}};
+                    new_stmt = _st;
+                }
 
                 PSG_AddStmt_toMod(mod, new_stmt);
             }
@@ -1630,6 +1678,93 @@ void SF_FrameIT_fromAST(mod_t *mod)
                     new_stmt = _PSF_ConstructSwitchStmt(mod->ast, i, &i);
                     PSG_AddStmt_toMod(mod, new_stmt);
                 }
+                else if (!strcmp(tok, "assert"))
+                {
+                    new_stmt.type = STATEMENT_TYPE_ASSERT;
+                    new_stmt.v.assert_stmt.condition = new_stmt.v.assert_stmt.message = NULL;
+                    psf_byte_array_t *_cond = _PSF_newByteArray(),
+                                     *_msg = NULL;
+                    int gb = 0;
+
+                    i++; // Eat 'assert'
+                    while (i < mod->ast->size)
+                    {
+                        psf_byte_t c = mod->ast->nodes[i];
+
+                        if (c.nval_type == AST_NVAL_TYPE_OPERATOR)
+                        {
+                            if (!strcmp(c.v.Operator.val, ",") && !gb)
+                            {
+                                _msg = _PSF_newByteArray();
+                                break;
+                            }
+                            if (!strcmp(c.v.Operator.val, "(") ||
+                                !strcmp(c.v.Operator.val, "{") ||
+                                !strcmp(c.v.Operator.val, "["))
+                                gb++;
+                            else if (!strcmp(c.v.Operator.val, ")") ||
+                                     !strcmp(c.v.Operator.val, "}") ||
+                                     !strcmp(c.v.Operator.val, "]"))
+                                gb--;
+                        }
+
+                        if (c.nval_type == AST_NVAL_TYPE_NEWLINE && !gb)
+                            break;
+
+                        PSF_AST_ByteArray_AddNode(_cond, c);
+                        i++;
+                    }
+
+                    assert(_cond->size && SF_FMT("Error: Syntax Error."));
+                    new_stmt.v.assert_stmt.condition = OSF_Malloc(sizeof(expr_t));
+                    *(new_stmt.v.assert_stmt.condition) = SF_FrameExpr_fromByte(_cond);
+
+                    if (_msg != NULL)
+                    {
+                        new_stmt.v.assert_stmt.message = OSF_Malloc(sizeof(expr_t));
+                        gb = 0;
+                        i++; // Eat ','
+
+                        while (i < mod->ast->size)
+                        {
+                            psf_byte_t c = mod->ast->nodes[i];
+
+                            if (c.nval_type == AST_NVAL_TYPE_OPERATOR)
+                            {
+                                if (!strcmp(c.v.Operator.val, ",") && !gb)
+                                {
+                                    _msg = _PSF_newByteArray();
+                                    break;
+                                }
+                                if (!strcmp(c.v.Operator.val, "(") ||
+                                    !strcmp(c.v.Operator.val, "{") ||
+                                    !strcmp(c.v.Operator.val, "["))
+                                    gb++;
+                                else if (!strcmp(c.v.Operator.val, ")") ||
+                                         !strcmp(c.v.Operator.val, "}") ||
+                                         !strcmp(c.v.Operator.val, "]"))
+                                    gb--;
+                            }
+
+                            if (c.nval_type == AST_NVAL_TYPE_NEWLINE && !gb)
+                                break;
+
+                            PSF_AST_ByteArray_AddNode(_msg, c);
+                            i++;
+                        }
+
+                        assert(_msg->size && SF_FMT("Error: Syntax Error."));
+                        *(new_stmt.v.assert_stmt.message) = SF_FrameExpr_fromByte(_msg);
+
+                        OSF_Free(_msg->nodes);
+                        OSF_Free(_msg);
+                    }
+
+                    OSF_Free(_cond->nodes);
+                    OSF_Free(_cond);
+                }
+                
+                PSG_AddStmt_toMod(mod, new_stmt);
             }
         }
         break;
@@ -1879,6 +2014,9 @@ int _PSF_EntityIsTrue(expr_t ent)
             break;
         case CONSTANT_TYPE_STRING:
             return !!strlen(ent.v.constant.String.value);
+            break;
+        case CONSTANT_TYPE_CLASS_OBJECT:
+            return 1;
             break;
         default:
             return 0;
