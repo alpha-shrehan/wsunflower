@@ -250,6 +250,50 @@ expr_t *NativeFunctionEval(mod_t *mod_ref)
     return __res;
 }
 
+expr_t *NativeFunctionnativeType(mod_t *mod_ref)
+{
+    expr_t *__res = OSF_Malloc(sizeof(expr_t));
+    var_t *get_v = IPSF_GetVar_fromMod(mod_ref, "_Val", NULL);
+    expr_t v = get_v->val;
+
+    __res->type = EXPR_TYPE_CONSTANT;
+    __res->v.constant.constant_type = CONSTANT_TYPE_STRING;
+
+    switch (v.type)
+    {
+    case EXPR_TYPE_CONSTANT:
+    {
+        switch (v.v.constant.constant_type)
+        {
+        case CONSTANT_TYPE_INT:
+            __res->v.constant.String.value = "\'def:int\'";
+            break;
+        case CONSTANT_TYPE_FLOAT:
+            __res->v.constant.String.value = "\'def:float\'";
+            break;
+        case CONSTANT_TYPE_BOOL:
+            __res->v.constant.String.value = "\'def:bool\'";
+            break;
+        case CONSTANT_TYPE_STRING:
+            __res->v.constant.String.value = "\'def:str\'";
+            break;
+        case CONSTANT_TYPE_DTYPE:
+            __res->v.constant.String.value = "\'def:dtype\'";
+            break;
+        default:
+            __res->v.constant.String.value = "\'\'";
+            break;
+        }
+    }
+        break;
+    
+    default:
+        break;
+    }
+
+    return __res;
+}
+
 void SFBuiltIn_AddDefaultFunctions(mod_t *mod)
 {
     fun_t _write_fun = (fun_t){
@@ -348,6 +392,21 @@ void SFBuiltIn_AddDefaultFunctions(mod_t *mod)
 
     int fun_eval_mem_idx = PSG_AddFunction(_eval_fun);
 
+    fun_t _nativeType_fun = (fun_t){
+        .name = "nativeType",
+        .is_native = 1,
+        .arg_acceptance_count = 1,
+        .v.Native = {
+            .arg_size = 1,
+            .args = OSF_Malloc(sizeof(expr_t)),
+            .f = NativeFunctionnativeType}};
+
+    _nativeType_fun.v.Native.args[0] = (expr_t){
+        .type = EXPR_TYPE_VARIABLE,
+        .v.variable = {.name = "_Val"}};
+
+    int fun_nativeType_mem_idx = PSG_AddFunction(_nativeType_fun);
+
     // write(...) function
     IPSF_ExecVarDecl_fromStmt(mod, (stmt_t){.type = STATEMENT_TYPE_VAR_DECL, .v.var_decl = {.expr = (expr_t *)(expr_t[]){(expr_t){.type = EXPR_TYPE_FUNCTION, .v.function_s = {.index = fun_write_mem_idx, .name = "write"}}}, .name = (expr_t *)(expr_t[]){(expr_t){.type = EXPR_TYPE_VARIABLE, .v.variable.name = "write"}}}}, NULL);
     // input(msg) function
@@ -356,6 +415,8 @@ void SFBuiltIn_AddDefaultFunctions(mod_t *mod)
     IPSF_ExecVarDecl_fromStmt(mod, (stmt_t){.type = STATEMENT_TYPE_VAR_DECL, .v.var_decl = {.expr = (expr_t *)(expr_t[]){(expr_t){.type = EXPR_TYPE_FUNCTION, .v.function_s = {.index = fun_int_mem_idx, .name = "int"}}}, .name = (expr_t *)(expr_t[]){(expr_t){.type = EXPR_TYPE_VARIABLE, .v.variable.name = "int"}}}}, NULL);
     // eval(_Code) function
     IPSF_ExecVarDecl_fromStmt(mod, (stmt_t){.type = STATEMENT_TYPE_VAR_DECL, .v.var_decl = {.expr = (expr_t *)(expr_t[]){(expr_t){.type = EXPR_TYPE_FUNCTION, .v.function_s = {.index = fun_eval_mem_idx, .name = "eval"}}}, .name = (expr_t *)(expr_t[]){(expr_t){.type = EXPR_TYPE_VARIABLE, .v.variable.name = "eval"}}}}, NULL);
+    // nativeType(_Val) function
+    IPSF_ExecVarDecl_fromStmt(mod, (stmt_t){.type = STATEMENT_TYPE_VAR_DECL, .v.var_decl = {.expr = (expr_t *)(expr_t[]){(expr_t){.type = EXPR_TYPE_FUNCTION, .v.function_s = {.index = fun_nativeType_mem_idx, .name = "nativeType"}}}, .name = (expr_t *)(expr_t[]){(expr_t){.type = EXPR_TYPE_VARIABLE, .v.variable.name = "nativeType"}}}}, NULL);
 }
 
 expr_t *Native_Proto_Int__str__(mod_t *mod_ref)

@@ -12,6 +12,12 @@ void PSF_AST_ByteArray_AddNode(psf_byte_array_t *_Target, psf_byte_t _Node)
 psf_byte_array_t *PSF_AST_fromString(const char *src)
 {
     psf_byte_array_t *ast;
+    if (src == NULL)
+    {
+        ast = _PSF_newByteArray();
+        return ast;
+    }
+    
     ast = _PSF_New_AST_FromString(src);
 
     return ast;

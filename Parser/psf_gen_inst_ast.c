@@ -1649,7 +1649,7 @@ void SF_FrameIT_fromAST(mod_t *mod)
                     PSG_AddStmt_toMod(mod, new_stmt);
 
                     int gb = 0;
-                    i++; // Eat 'import', idk why tho
+                    i++; // Eat 'import'
 
                     while (i < mod->ast->size)
                     {
@@ -1763,7 +1763,7 @@ void SF_FrameIT_fromAST(mod_t *mod)
                     OSF_Free(_cond->nodes);
                     OSF_Free(_cond);
                 }
-                
+
                 PSG_AddStmt_toMod(mod, new_stmt);
             }
         }
@@ -2783,6 +2783,36 @@ stmt_t _PSF_ConstructFunctionStmt(psf_byte_array_t *arr, int idx, int *bd_sz_ptr
                 result.v.function_decl.name = OSF_strdup(name->nodes[0].v.Identifier.val);
             }
         }
+        else
+        {
+            char *fname = OSF_Malloc(sizeof(char));
+            *fname = '\0';
+            for (size_t j = 0; j < name->size; j++)
+            {
+                psf_byte_t _c = name->nodes[j];
+
+                switch (_c.nval_type)
+                {
+                case AST_NVAL_TYPE_IDENTIFIER:
+                {
+                    fname = OSF_Realloc(fname, (strlen(fname) + (strlen(_c.v.Identifier.val)) + 1) * sizeof(char));
+                    strcat(fname, _c.v.Identifier.val);
+                }
+                break;
+                case AST_NVAL_TYPE_OPERATOR:
+                {
+                    fname = OSF_Realloc(fname, (strlen(fname) + strlen(_c.v.Operator.val) + 1) * sizeof(char));
+                    strcat(fname, _c.v.Operator.val);
+                }
+                break;
+                default:
+                    break;
+                }
+            }
+            result.v.function_decl.name = OSF_strdup(fname);
+
+            OSF_Free(fname);
+        }
     }
 
     OSF_Free(body_mod->var_holds);
@@ -3242,7 +3272,7 @@ stmt_t _PSF_ConstructSwitchStmt(psf_byte_array_t *arr, int idx, size_t *end_ptr)
                  c.v.Identifier.is_token &&
                  !strcmp(c.v.Identifier.val, "default"))
         {
-            psf_byte_array_t *cbody_arr = _PSF_GetBody(body, i, _PSF_GetTabspace(body, i - 1));
+            psf_byte_array_t *cbody_arr = _PSF_GetBody(body, i + 1, _PSF_GetTabspace(body, i - 1));
             mod_t *cb_m = SF_CreateModule(MODULE_TYPE_FILE, cbody_arr);
             SF_FrameIT_fromAST(cb_m);
 
@@ -3250,7 +3280,7 @@ stmt_t _PSF_ConstructSwitchStmt(psf_byte_array_t *arr, int idx, size_t *end_ptr)
             ret.v.switch_case.def_case.body_size = BODY(cb_m)->body_size;
             ret.v.switch_case.def_case.condition = NULL;
 
-            i += cbody_arr->size;
+            i += cbody_arr->size + 1;
 
             OSF_Free(cbody_arr->nodes);
             OSF_Free(cbody_arr);
@@ -3259,7 +3289,7 @@ stmt_t _PSF_ConstructSwitchStmt(psf_byte_array_t *arr, int idx, size_t *end_ptr)
     }
 
     if (end_ptr != NULL)
-        (*end_ptr) += body->size;
+        (*end_ptr) += body->size + 1;
 
     OSF_Free(body->nodes);
     OSF_Free(body);

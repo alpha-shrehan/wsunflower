@@ -213,10 +213,17 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
         case STATEMENT_TYPE_FOR:
         {
             expr_t cond_red = IPSF_ReduceExpr_toConstant(mod, *(curr.v.for_stmt.condition));
+            int pres_body_type = mod->type;
+            int pres_body_size = BODY(mod)->body_size;
+            stmt_t *pres_body = BODY(mod)->body;
+            char *pres_name = BODY(mod)->name;
+            var_t *pres_vars = mod->var_holds;
+            int pres_var_size = mod->var_holds_size;
 
-            mod_t *f_mod = SF_CreateModule(mod->type, NULL);
-            f_mod->parent = mod;
-            OSF_Free(BODY(f_mod)->body);
+            mod_t *f_mod = /* SF_CreateModule(mod->type, NULL) */ mod;
+            mod_t *f_cache_mod = SF_CreateModule(mod->type, NULL);
+            // f_mod->parent = mod;
+            // OSF_Free(BODY(f_mod)->body);
 
             switch (cond_red.v.constant.constant_type)
             {
@@ -241,6 +248,11 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                                     f_mod,
                                     curr.v.for_stmt.vars[k].name,
                                     arr_ref[k]);
+
+                                _IPSF_AddVar_toModule(
+                                    f_cache_mod,
+                                    curr.v.for_stmt.vars[k].name,
+                                    arr_ref[k]);
                             }
                         }
                         else if (curr.v.for_stmt.var_size < sz_ref)
@@ -251,6 +263,11 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                                     f_mod,
                                     curr.v.for_stmt.vars[k].name,
                                     arr_ref[k]);
+
+                                _IPSF_AddVar_toModule(
+                                    f_cache_mod,
+                                    curr.v.for_stmt.vars[k].name,
+                                    arr_ref[k]);
                             }
                         }
                         else if (curr.v.for_stmt.var_size > sz_ref)
@@ -259,6 +276,11 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                             {
                                 _IPSF_AddVar_toModule(
                                     f_mod,
+                                    curr.v.for_stmt.vars[k].name,
+                                    arr_ref[k]);
+
+                                _IPSF_AddVar_toModule(
+                                    f_cache_mod,
                                     curr.v.for_stmt.vars[k].name,
                                     arr_ref[k]);
                             }
@@ -272,6 +294,11 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                             f_mod,
                             curr.v.for_stmt.vars[0].name,
                             idx_val);
+
+                        _IPSF_AddVar_toModule(
+                            f_cache_mod,
+                            curr.v.for_stmt.vars[0].name,
+                            idx_val);
                     }
                     break;
                     }
@@ -280,7 +307,7 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                     for (size_t k = 0; k < curr.v.for_stmt.var_size; k++)
                     {
                         int err_c = IPSF_OK;
-                        var_t *pv_v = IPSF_GetVar_fromMod(f_mod, curr.v.for_stmt.vars[k].name, &err_c);
+                        var_t *pv_v = IPSF_GetVar_fromMod(f_cache_mod, curr.v.for_stmt.vars[k].name, &err_c);
 
                         /**
                          * @brief Variables who could not fit to data
@@ -294,10 +321,17 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                             expr_t _vred = IPSF_ReduceExpr_toConstant(f_mod, curr.v.for_stmt.vars[k].val);
 
                             if (!_IPSF_IsDataType_Void(_vred))
+                            {
                                 _IPSF_AddVar_toModule(
                                     f_mod,
                                     curr.v.for_stmt.vars[k].name,
                                     _vred);
+                                
+                                _IPSF_AddVar_toModule(
+                                    f_cache_mod,
+                                    curr.v.for_stmt.vars[k].name,
+                                    _vred);
+                            }
 
                             continue;
                         }
@@ -318,9 +352,13 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                         doBreak = 1;
                     }
 
-                    SF_Module_safeDelete(f_mod);
-                    f_mod->var_holds = OSF_Malloc(sizeof(var_t));
-                    f_mod->var_holds_size = 0;
+                    SF_Module_safeDelete(f_cache_mod);
+                    f_cache_mod->var_holds = OSF_Malloc(sizeof(var_t));
+                    f_cache_mod->var_holds_size = 0;
+
+                    // SF_Module_safeDelete(f_mod);
+                    // f_mod->var_holds = OSF_Malloc(sizeof(var_t));
+                    // f_mod->var_holds_size = 0;
 
                     if (doBreak)
                         break;
@@ -446,9 +484,9 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                         doBreak = 1;
                     }
 
-                    SF_Module_safeDelete(f_mod);
-                    f_mod->var_holds = OSF_Malloc(sizeof(var_t));
-                    f_mod->var_holds_size = 0;
+                    // SF_Module_safeDelete(f_mod);
+                    // f_mod->var_holds = OSF_Malloc(sizeof(var_t));
+                    // f_mod->var_holds_size = 0;
 
                     if (doBreak)
                         break;
@@ -464,8 +502,14 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                 break;
             }
 
-            SF_Module_safeDelete(f_mod);
-            OSF_Free(f_mod);
+            mod->type = pres_body_type;
+            BODY(mod)->body = pres_body;
+            BODY(mod)->body_size = pres_body_size;
+            BODY(mod)->name = pres_name;
+
+            SF_Module_safeDelete(f_cache_mod);
+            OSF_Free(f_cache_mod);
+            i++;
         }
         break;
         case STATEMENT_TYPE_REPEAT:
@@ -614,12 +658,27 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                 {
                     if (_PSF_EntityIsTrue(_IPSF_ExecLogicalArithmetic(red_cond, LOGICAL_OP_EQEQ, curr_case_red)))
                     {
-                        mod_t *m = SF_CreateModule(mod->type, NULL);
-                        m->parent = mod;
-                        BODY(m)->body = curr.v.switch_case.cases[j].body;
-                        BODY(m)->body_size = curr.v.switch_case.cases[j].body_size;
+                        // mod_t *m = SF_CreateModule(mod->type, NULL);
+                        // m->parent = mod;
+                        // BODY(m)->body = curr.v.switch_case.cases[j].body;
+                        // BODY(m)->body_size = curr.v.switch_case.cases[j].body_size;
 
-                        OSF_Free(IPSF_ExecIT_fromMod(m, NULL));
+                        // OSF_Free(IPSF_ExecIT_fromMod(m, NULL));
+
+                        psf_byte_array_t *pres_ast = mod->ast;
+                        stmt_t *pres_body = BODY(mod)->body;
+                        int pres_size = BODY(mod)->body_size;
+                        int pres_type = mod->type;
+
+                        BODY(mod)->body = curr.v.switch_case.cases[j].body;
+                        BODY(mod)->body_size = curr.v.switch_case.cases[j].body_size;
+
+                        OSF_Free(IPSF_ExecIT_fromMod(mod, NULL));
+
+                        mod->type = pres_type;
+                        mod->ast = pres_ast;
+                        BODY(mod)->body = pres_body;
+                        BODY(mod)->body_size = pres_size;
 
                         c_true = 1;
                         break;
@@ -629,12 +688,27 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                 {
                     if (_PSF_EntityIsTrue(curr_case_red))
                     {
-                        mod_t *m = SF_CreateModule(mod->type, NULL);
-                        m->parent = mod;
-                        BODY(m)->body = curr.v.switch_case.cases[j].body;
-                        BODY(m)->body_size = curr.v.switch_case.cases[j].body_size;
+                        // mod_t *m = SF_CreateModule(mod->type, NULL);
+                        // m->parent = mod;
+                        // BODY(m)->body = curr.v.switch_case.cases[j].body;
+                        // BODY(m)->body_size = curr.v.switch_case.cases[j].body_size;
 
-                        OSF_Free(IPSF_ExecIT_fromMod(m, NULL));
+                        // OSF_Free(IPSF_ExecIT_fromMod(m, NULL));
+
+                        psf_byte_array_t *pres_ast = mod->ast;
+                        stmt_t *pres_body = BODY(mod)->body;
+                        int pres_size = BODY(mod)->body_size;
+                        int pres_type = mod->type;
+
+                        BODY(mod)->body = curr.v.switch_case.cases[j].body;
+                        BODY(mod)->body_size = curr.v.switch_case.cases[j].body_size;
+
+                        OSF_Free(IPSF_ExecIT_fromMod(mod, NULL));
+
+                        mod->type = pres_type;
+                        mod->ast = pres_ast;
+                        BODY(mod)->body = pres_body;
+                        BODY(mod)->body_size = pres_size;
 
                         c_true = 1;
                         break;
@@ -647,14 +721,31 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                 // Execute default case, if provided
                 if (curr.v.switch_case.def_case.body_size)
                 {
-                    mod_t *m = SF_CreateModule(mod->type, NULL);
-                    m->parent = mod;
-                    BODY(m)->body = curr.v.switch_case.def_case.body;
-                    BODY(m)->body_size = curr.v.switch_case.def_case.body_size;
+                    // mod_t *m = SF_CreateModule(mod->type, NULL);
+                    // m->parent = mod;
+                    // BODY(m)->body = curr.v.switch_case.def_case.body;
+                    // BODY(m)->body_size = curr.v.switch_case.def_case.body_size;
 
-                    OSF_Free(IPSF_ExecIT_fromMod(m, NULL));
+                    // OSF_Free(IPSF_ExecIT_fromMod(m, NULL));
+
+                    psf_byte_array_t *pres_ast = mod->ast;
+                    stmt_t *pres_body = BODY(mod)->body;
+                    int pres_size = BODY(mod)->body_size;
+                    int pres_type = mod->type;
+
+                    BODY(mod)->body = curr.v.switch_case.def_case.body;
+                    BODY(mod)->body_size = curr.v.switch_case.def_case.body_size;
+
+                    OSF_Free(IPSF_ExecIT_fromMod(mod, NULL));
+
+                    mod->type = pres_type;
+                    mod->ast = pres_ast;
+                    BODY(mod)->body = pres_body;
+                    BODY(mod)->body_size = pres_size;
                 }
             }
+
+            i++;
         }
         break;
         case STATEMENT_TYPE_ASSERT:
@@ -885,10 +976,16 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
             int f_arg_size = 0;
             mod_t *m_ref = PSG_GetModule(_red_nme.v.module_s.index);
             mod_t *pres_mref_p = m_ref->parent;
+
+            var_t *get_main = IPSF_GetVar_fromMod(m_ref, "__main__", NULL);
+            assert(get_main != NULL && SF_FMT("Error: Module has no constructor."));
+            assert(get_main->val.type == EXPR_TYPE_FUNCTION && SF_FMT("Error: Module constructor is not a function."));
+
             m_ref->parent = mod;
 
             for (size_t j = 0; j < expr->v.function_call.arg_size; j++)
             {
+                assert (expr->v.function_call.args[j].type != EXPR_TYPE_INLINE_ASSIGNMENT && SF_FMT("Error: Inline assignment not allowed in module constructors."));
                 expr_t rd = IPSF_ReduceExpr_toConstant(m_ref, expr->v.function_call.args[j]);
                 if (!_IPSF_IsDataType_Void(rd))
                     f_args[f_arg_size++] = rd;
@@ -896,9 +993,6 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
 
             m_ref->parent = pres_mref_p;
 
-            var_t *get_main = IPSF_GetVar_fromMod(m_ref, "__main__", NULL);
-            assert(get_main != NULL && SF_FMT("Error: Module has no constructor."));
-            assert(get_main->val.type == EXPR_TYPE_FUNCTION && SF_FMT("Error: Module constructor is not a function."));
             fun_t main_func = (*PSG_GetFunctions())[get_main->val.v.function_s.index];
             expr_t *mf_res = _IPSF_CallFunction(main_func, f_args, f_arg_size, m_ref);
 
@@ -1043,6 +1137,26 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
                     ARRAY(_entity_red.v.constant.Array.index).len;
 
             _fres = ARRAY(_entity_red.v.constant.Array.index).vals[_index_red.v.constant.Int.value];
+        }
+        break;
+        case CONSTANT_TYPE_CLASS_OBJECT:
+        {
+            class_t *cobj = _IPSF_GetClass_fromIntTuple(_entity_red.v.constant.ClassObj.idx);
+            var_t *get_operator_index = IPSF_GetVar_fromMod(cobj->mod, "operator[]", NULL);
+
+            assert(
+                get_operator_index != NULL &&
+                SF_FMT("Error: Class object not callable"));
+
+            assert(
+                get_operator_index->val.type == EXPR_TYPE_FUNCTION &&
+                SF_FMT("Error: `operator[]' must be a function"));
+
+            fun_t _f = (*PSG_GetFunctions())[get_operator_index->val.v.function_s.index];
+            expr_t *_f_res = _IPSF_CallFunction(_f, (expr_t *)(expr_t[]){_entity_red, _index_red}, 2, cobj->mod->parent);
+            _fres = *_f_res;
+
+            OSF_Free(_f_res);
         }
         break;
 
@@ -1590,7 +1704,7 @@ IPSF_ExecVarDecl_fromStmt(mod_t *mod, stmt_t stmt, int *err)
                 {
                     if (_a_ref->len)
                         _a_ref->vals = OSF_Realloc(_a_ref->vals, (_a_ref->len + 1) * sizeof(expr_t));
-                    
+
                     _a_ref->vals[_a_ref->len++] = reduced_val_cpy;
                 }
                 else
@@ -3068,7 +3182,8 @@ expr_t _IPSF_Entity_IsIn_Entity(expr_t lhs, expr_t rhs, mod_t *mod)
 
 char *_IPSF_GetDir_FromFilePath(char *path)
 {
-    char *new_path = strrev(path);
+    char *pcpy = OSF_strdup(path);
+    char *new_path = strrev(pcpy);
 
     while (1)
         if (*new_path == '/' ||

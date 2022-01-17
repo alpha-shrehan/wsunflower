@@ -1,0 +1,39 @@
+import type
+
+class array
+    vals = []
+    mode = ''
+    
+    fun __main__(self, vals, mode = 'any')
+        if mode != 'any'
+            assert mode in 'fisdb', "mode must be one of 'f','i','s','b','d' or 'any'"
+        for i in vals
+            ty = type(i)
+            switch mode
+                case 'i'
+                    assert ty == type.int
+                case 'f'
+                    assert ty == type.float
+                case 's'
+                    assert ty == type.str
+                case 'b'
+                    assert ty == type.bool
+                case 'd'
+                    assert ty == type.dtype
+                case 'any'
+                    None
+                default
+                    assert 0, 'Mode not recognized'
+        self.mode = mode
+        self.vals = vals
+    
+    fun __str__(self)
+        return self.vals
+    
+    fun operator[](self, idx)
+        return self.vals[idx]
+    
+    __stdout__ = __str__
+
+fun __main__(mode, vals)
+    return array(mode = mode, vals = vals)

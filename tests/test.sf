@@ -1,17 +1,4 @@
-class array
-    vals = []
-    mode = ''
-    
-    fun __main__(self, vals, mode = 'any')
-        if mode != 'any'
-            assert mode in 'fisdb', "mode must be one of 'f','i','s','b','d' or 'any'"
-        self.mode = mode
-        self.vals = vals
-    
-    fun __str__(self)
-        return self.vals
-    
-    __stdout__ = __str__
+import array
 
-a = array(mode='i', vals=[1,2,3])
+a = array('any', [1,2,array(mode='i', vals=[3,4]),5])
 write(a)

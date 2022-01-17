@@ -22,15 +22,15 @@ class Decoder
                     val = False
                 case 'null'
                     val = None
-                case _ in ['[', '{']:
+                case in ['[', '{']:
                     val = self.decode(i[1])
-                case _ in ['"', "'"]:
+                case in ['"', "'"]:
                     val = i[1][1 to len(i[1]) - 1]
-                case _.isnumber()
+                case i[1].isnumber()
                     val = int(i[1])
-                case _.isfloat():
+                case i[1].isfloat():
                     val = float(i[1])
-                case _
+                default
                     assert False, 'Invalid value: ' + i[1]
             
             d[i[0]] = val

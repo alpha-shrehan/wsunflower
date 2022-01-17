@@ -1,0 +1,22 @@
+int = 1
+float = 2
+str = 3
+bool = 4
+dtype = 5
+
+fun __main__(val)
+    res = 0
+    switch nativeType(val)
+        case 'def:int'
+            res = int
+        case 'def:float'
+            res = float
+        case 'def:str'
+            res = str
+        case 'def:bool'
+            res = bool
+        case 'def:dtype'
+            res = dtype
+        default
+            res = -1
+    return res
