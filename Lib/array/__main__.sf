@@ -36,4 +36,4 @@ class array
     __stdout__ = __str__
 
 fun __main__(mode, vals)
-    return array(mode = mode, vals = vals)
+    return array(vals = vals, mode = mode)

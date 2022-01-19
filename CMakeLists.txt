@@ -10,9 +10,21 @@ include_directories(Include/gc)
 
 # add_compile_options(-O3)
 
-FILE(GLOB_RECURSE SFCSOURCES *.c)
+# FILE(GLOB_RECURSE SFCSOURCES *.c)
 
-add_library(sunflower ${SFCSOURCES})
+add_library(
+    sunflower 
+    "./builtins/built_in.c"
+    "./InstructionParser/expr_t.c"
+    "./InstructionParser/ipsf_init.c"
+    "./Object/osf_mem.c"
+    "./Parser/array_t.c"
+    "./Parser/psf_byte_t.c"
+    "./Parser/psf_gen_ast.c"
+    "./Parser/psf_gen_ast_preprocessor.c"
+    "./Parser/psf_gen_inst_ast.c"
+    "./sunflower.c"
+)
 target_link_libraries(sunflower ${CMAKE_CURRENT_SOURCE_DIR}/DLLs/gcmt-dll.dll)
 
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})

@@ -1,4 +1,4 @@
 import array
 
-a = array('any', [1,2,array(mode='i', vals=[3,4]),5])
+a = array('any', [1,2,array('i', [3,4]),5])
 write(a)

@@ -614,6 +614,8 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                 mod->returns = OSF_Malloc(sizeof(expr_t));
 
             *(mod->returns) = IPSF_ReduceExpr_toConstant(mod, *(curr.v.return_stmt.expr));
+            doBreak = 1;
+            break;
         }
         break;
         case STATEMENT_TYPE_IMPORT:
@@ -896,7 +898,8 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
                 if (expr->v.function_call.args[j].type == EXPR_TYPE_INLINE_ASSIGNMENT)
                 {
                     f_args[j + fa_beg] = expr->v.function_call.args[j];
-                    *(f_args[j + fa_beg].v.inline_assignment.rhs) = IPSF_ReduceExpr_toConstant(mod, *(f_args[j + fa_beg].v.inline_assignment.rhs));
+                    f_args[j + fa_beg].v.inline_assignment.rhs = OSF_Malloc(sizeof(expr_t));
+                    *(f_args[j + fa_beg].v.inline_assignment.rhs) = IPSF_ReduceExpr_toConstant(mod, *(expr->v.function_call.args[j].v.inline_assignment.rhs));
                 }
                 else
                     f_args[j + fa_beg] = IPSF_ReduceExpr_toConstant(mod, expr->v.function_call.args[j]);
@@ -954,7 +957,8 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
                 if (expr->v.function_call.args[j].type == EXPR_TYPE_INLINE_ASSIGNMENT)
                 {
                     cons_args[j + 1] = expr->v.function_call.args[j];
-                    *(cons_args[j + 1].v.inline_assignment.rhs) = IPSF_ReduceExpr_toConstant(mod, *(cons_args[j + 1].v.inline_assignment.rhs));
+                    cons_args[j + 1].v.inline_assignment.rhs = OSF_Malloc(sizeof(expr_t));
+                    *(cons_args[j + 1].v.inline_assignment.rhs) = IPSF_ReduceExpr_toConstant(mod, *(expr->v.function_call.args[j].v.inline_assignment.rhs));
                 }
                 else
                     cons_args[j + 1] = IPSF_ReduceExpr_toConstant(mod, expr->v.function_call.args[j]);
@@ -985,8 +989,8 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
 
             for (size_t j = 0; j < expr->v.function_call.arg_size; j++)
             {
-                assert (expr->v.function_call.args[j].type != EXPR_TYPE_INLINE_ASSIGNMENT && SF_FMT("Error: Inline assignment not allowed in module constructors."));
-                expr_t rd = IPSF_ReduceExpr_toConstant(m_ref, expr->v.function_call.args[j]);
+                assert (expr->v.function_call.args[j].type != EXPR_TYPE_INLINE_ASSIGNMENT && SF_FMT("Error: Inline assignment is not allowed in module constructors."));
+                expr_t rd = IPSF_ReduceExpr_toConstant(mod, expr->v.function_call.args[j]);
                 if (!_IPSF_IsDataType_Void(rd))
                     f_args[f_arg_size++] = rd;
             }
@@ -2701,7 +2705,6 @@ expr_t *_IPSF_CallFunction(fun_t fun_s, expr_t *args, int arg_size, mod_t *mod)
         }
     }
 
-    fun_mod->parent = mod;
     for (size_t j = 0; j < arg_size; j++)
     {
         if (args[j].type == EXPR_TYPE_INLINE_ASSIGNMENT)
@@ -2710,6 +2713,7 @@ expr_t *_IPSF_CallFunction(fun_t fun_s, expr_t *args, int arg_size, mod_t *mod)
             _collectivise_args[_collectivise_args_count++] = args[j];
     }
 
+    fun_mod->parent = mod;
     _cargs_without_voids = _PSF_RemoveVoidsFromExprArray(_collectivise_args, _collectivise_args_count, &_cargs_without_voids_size);
 
     switch (fun_s.arg_acceptance_count)
