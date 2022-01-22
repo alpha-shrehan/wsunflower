@@ -1,4 +1,2 @@
-import array
-
-a = array('any', [1,2,array('i', [3,4]),5])
+a = {1: 2, 'a': 'b', None: None}
 write(a)

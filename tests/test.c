@@ -51,6 +51,16 @@ int main(int argc, char const *argv[])
                 }
             }
         }
+        else if (mod->v.file_s.body[i].type == STATEMENT_TYPE_IF)
+        {
+            printf("\t");
+            
+            for (size_t j = 0; j < mod->v.file_s.body[i].v.if_stmt.body_size; j++)
+            {
+                PSG_PrintStatementType(mod->v.file_s.body[i].v.if_stmt.body[j].type);
+                printf("\t");
+            }
+        }
     }
 #else
     int err;

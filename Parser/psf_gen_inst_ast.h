@@ -2,6 +2,7 @@
 
 #define BODY(X) _mod_body(X)
 #define ARRAY(X) (*PSG_GetArray_Ptr((X)))
+#define DICT(X) (*PSG_GetDict_Ptr((X)))
 
 #include <assert.h>
 #include <limits.h>
@@ -37,7 +38,8 @@ enum ConstantTypeEnum
     CONSTANT_TYPE_BOOL,
     CONSTANT_TYPE_DTYPE,
     CONSTANT_TYPE_ARRAY,
-    CONSTANT_TYPE_CLASS_OBJECT
+    CONSTANT_TYPE_CLASS_OBJECT,
+    CONSTANT_TYPE_DICT
 };
 
 enum DataTypeEnum
@@ -125,6 +127,11 @@ struct _expr
                 {
                     int_tuple idx;
                 } ClassObj;
+
+                struct
+                {
+                    int index;
+                } Dict;
             };
         } constant;
 
@@ -490,11 +497,21 @@ struct _array
 {
     expr_t *vals;
     int len;
-    struct _array *parent; // Only one instance
+    // struct _array *parent; // Only one instance
     int evaluated;
 };
 
 typedef struct _array array_t;
+
+struct _dict
+{
+    expr_t *keys;
+    expr_t *vals;
+    int len;
+    int evaluated;
+};
+
+typedef struct _dict dict_t;
 
 /**
  * @brief This does not refer to data types in sunflower like None.
@@ -614,6 +631,18 @@ array_t **PSG_GetArrays(void);
 int *PSG_GetArraysSize(void);
 
 /**
+ * @brief Get reference of variable that stores all dicts of Sunflower
+ * @return dict_t** 
+ */
+dict_t **PSG_GetDicts(void);
+
+/**
+ * @brief Get reference to variable that stores dict holder's size
+ * @return int* 
+ */
+int *PSG_GetDictSize(void);
+
+/**
  * @brief Get reference to variable that stores module holder's size
  * @return int* 
  */
@@ -652,6 +681,21 @@ int PSG_AddArray(array_t);
  * @return array_t 
  */
 array_t *PSG_GetArray_Ptr(int);
+
+/**
+ * @brief Add dict to global holder
+ * @param nd Dict
+ * @return int 
+ */
+int PSG_AddDict(dict_t);
+
+/**
+ * @brief Get dict from index
+ * @param idx Index
+ * @return dict_t* 
+ */
+
+dict_t *PSG_GetDict_Ptr(int);
 
 /**
  * @brief Environment Initializer for Sunflower PSG
@@ -845,3 +889,28 @@ stmt_t _PSF_ConstructSwitchStmt(psf_byte_array_t *, int, size_t *);
  * @return char* 
  */
 char *_PSF_GetValidImportPath(char *, int, ...);
+
+/**
+ * @brief Construct dict from code
+ * @param arr Array
+ * @param st Start index
+ * @param ed_ptr End pointer
+ * @return expr_t* 
+ */
+expr_t _PSF_ConstructDict_fromByte(psf_byte_array_t *, int, int *);
+
+/**
+ * @brief Construct individual key value pair from byte
+ * @param arr Array
+ * @param res Reference to array of size 2
+ */
+void _PSF_ConstructIndividualKeyVal_forDict_fromByte(psf_byte_array_t *, expr_t ***);
+
+/**
+ * @brief Execute logical arithmetic operations
+ * @param _lhs Left hand operand
+ * @param op_ty Operand
+ * @param _rhs Right hand operand
+ * @return expr_t 
+ */
+expr_t _IPSF_ExecLogicalArithmetic(expr_t, int, expr_t);

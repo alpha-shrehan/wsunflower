@@ -1,8 +1,10 @@
 import type
+import iter
 
 class array
     vals = []
     mode = ''
+    ic = 0
     
     fun __main__(self, vals, mode = 'any')
         if mode != 'any'
@@ -32,6 +34,14 @@ class array
     
     fun operator[](self, idx)
         return self.vals[idx]
+    
+    fun operator for..in(self)
+        if self.ic == len(self.vals)
+            self.ic = 0
+            return None
+        v = self.vals[self.ic]
+        self.ic = self.ic + 1
+        return iter(v)
     
     __stdout__ = __str__
 

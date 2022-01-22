@@ -19,6 +19,7 @@ add_library(
     "./InstructionParser/ipsf_init.c"
     "./Object/osf_mem.c"
     "./Parser/array_t.c"
+    "./Parser/dict_t.c"
     "./Parser/psf_byte_t.c"
     "./Parser/psf_gen_ast.c"
     "./Parser/psf_gen_ast_preprocessor.c"

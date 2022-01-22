@@ -5,7 +5,7 @@ array_t Sf_Array_New(void)
     array_t arr;
     arr.len = 0;
     arr.vals = OSF_Malloc(sizeof(expr_t));
-    arr.parent = NULL;
+    // arr.parent = NULL;
     arr.evaluated = 0;
 
     return arr;
@@ -24,7 +24,7 @@ array_t Sf_Array_New_fromExpr(expr_t *ea, int sz)
     array_t n = Sf_Array_New();
     n.vals = ea;
     n.len = sz;
-    n.parent = NULL;
+    // n.parent = NULL;
     n.evaluated = 0;
 
     return n;

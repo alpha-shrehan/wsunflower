@@ -7,7 +7,7 @@ class Test
     fun __main__(self)
         return None
     
-    fun __iter__(self)
+    fun operator for..in(self)
         self.count = self.count + 1
         if self.count == 10
             return None

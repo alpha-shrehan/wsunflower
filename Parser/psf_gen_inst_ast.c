@@ -1,5 +1,6 @@
 #include "psf_gen_inst_ast.h"
 #include "array_t.h"
+#include "dict_t.h"
 #include "psf_byte_t.h"
 
 static fun_t *PSG_Functions;
@@ -12,6 +13,8 @@ static array_t *PSG_ArrayHolders;
 static int PSG_ArrayHolders_Count;
 static mod_t **PSG_ModuleHolder;
 static int PSG_ModuleHolderSize;
+static dict_t *PSG_DictHolder;
+static int PSG_DictHolder_Count;
 
 const char *_PSF_ImportPrefixes[] = {
     "C:/Users/USER/Desktop/Sunflower/Lib/",
@@ -862,6 +865,11 @@ expr_t SF_FrameExpr_fromByte(psf_byte_array_t *arr)
                 ret.v.member_access.child = (char *)OSF_strdup(arr->nodes[i + 1].v.Identifier.val);
                 i++;
             }
+            else if (!strcmp(op, "{"))
+            {
+                ret = _PSF_ConstructDict_fromByte(arr, i, &i);
+                continue;
+            }
         }
         break;
         default:
@@ -1022,29 +1030,47 @@ void SF_FrameIT_fromAST(mod_t *mod)
 
                 new_stmt.v.expr.expr->v.function_call.name = OSF_Malloc(sizeof(expr_t));
                 new_stmt.v.expr.expr->v.function_call.is_func_call = 1;
+                int skip_f = 0;
 
-                if (BODY(mod)->body_size)
+                if (i)
                 {
-                    stmt_t last_stmt = BODY(mod)->body[BODY(mod)->body_size - 1];
+                    if (mod->ast->nodes[i - 1].nval_type == AST_NVAL_TYPE_NEWLINE ||
+                        mod->ast->nodes[i - 1].nval_type == AST_NVAL_TYPE_TABSPACE)
+                        skip_f = 1;
+                }
 
-                    switch (last_stmt.type)
+                if (!skip_f)
+                {
+                    if (BODY(mod)->body_size)
                     {
-                    case STATEMENT_TYPE_VAR_REF:
-                    {
-                        const char *last_stmt_name = last_stmt.v.var_ref.name;
+                        stmt_t last_stmt = BODY(mod)->body[BODY(mod)->body_size - 1];
 
+                        switch (last_stmt.type)
+                        {
+                        case STATEMENT_TYPE_VAR_REF:
+                        {
+                            const char *last_stmt_name = last_stmt.v.var_ref.name;
+
+                            *(new_stmt.v.expr.expr->v.function_call.name) = (expr_t){
+                                .type = EXPR_TYPE_VARIABLE,
+                                .v.variable.name = (char *)OSF_strdup(last_stmt_name)};
+                        }
+                        break;
+                        case STATEMENT_TYPE_EXPR:
+                        {
+                            *(new_stmt.v.expr.expr->v.function_call.name) = *(last_stmt.v.expr.expr);
+                        }
+                        break;
+                        default:
+                            break;
+                        }
+                    }
+                    else
+                    {
+                        new_stmt.v.expr.expr->v.function_call.is_func_call = 0;
                         *(new_stmt.v.expr.expr->v.function_call.name) = (expr_t){
                             .type = EXPR_TYPE_VARIABLE,
-                            .v.variable.name = (char *)OSF_strdup(last_stmt_name)};
-                    }
-                    break;
-                    case STATEMENT_TYPE_EXPR:
-                    {
-                        *(new_stmt.v.expr.expr->v.function_call.name) = *(last_stmt.v.expr.expr);
-                    }
-                    break;
-                    default:
-                        break;
+                            .v.variable.name = NULL};
                     }
                 }
                 else
@@ -1055,7 +1081,7 @@ void SF_FrameIT_fromAST(mod_t *mod)
                         .v.variable.name = NULL};
                 }
 
-                if (BODY(mod)->body_size)
+                if (new_stmt.v.expr.expr->v.function_call.is_func_call)
                     BODY(mod)->body[BODY(mod)->body_size - 1] = new_stmt;
                 else
                     PSG_AddStmt_toMod(mod, new_stmt);
@@ -1443,6 +1469,8 @@ void SF_FrameIT_fromAST(mod_t *mod)
                         OSF_Free(body_arr->nodes);
                         OSF_Free(body_arr);
                     }
+
+                    continue;
                 }
                 else if (!strcmp(tok, "while"))
                 {
@@ -1643,13 +1671,14 @@ void SF_FrameIT_fromAST(mod_t *mod)
 
                     PSG_AddStmt_toMod(mod, new_stmt);
                 }
-                else if (!strcmp(tok, "import"))
+                else if (!strcmp(tok, "import") ||
+                         !strcmp(tok, "from"))
                 {
                     new_stmt = _PSF_ConstructImportLine(mod, i);
                     PSG_AddStmt_toMod(mod, new_stmt);
 
                     int gb = 0;
-                    i++; // Eat 'import'
+                    i++; // Eat 'import' / 'from'
 
                     while (i < mod->ast->size)
                     {
@@ -1763,8 +1792,6 @@ void SF_FrameIT_fromAST(mod_t *mod)
                     OSF_Free(_cond->nodes);
                     OSF_Free(_cond);
                 }
-
-                PSG_AddStmt_toMod(mod, new_stmt);
             }
         }
         break;
@@ -1916,6 +1943,8 @@ void _PSG_EnvInit(void)
     PSG_ArrayHolders_Count = 0;
     PSG_ModuleHolder = (mod_t **)OSF_Malloc(sizeof(mod_t *));
     PSG_ModuleHolderSize = 0;
+    PSG_DictHolder = (dict_t *)OSF_Malloc(sizeof(dict_t));
+    PSG_DictHolder_Count = 0;
 }
 
 int PSG_AddFunction(fun_t _fun)
@@ -2805,6 +2834,12 @@ stmt_t _PSF_ConstructFunctionStmt(psf_byte_array_t *arr, int idx, int *bd_sz_ptr
                     strcat(fname, _c.v.Operator.val);
                 }
                 break;
+                case AST_NVAL_TYPE_STRING:
+                {
+                    fname = OSF_Realloc(fname, (strlen(fname) + 5) * sizeof(char));
+                    strcat(fname, "\'\'");
+                }
+                break;
                 default:
                     break;
                 }
@@ -2912,6 +2947,16 @@ int *PSG_GetArraysSize(void)
     return &PSG_ArrayHolders_Count;
 }
 
+dict_t **PSG_GetDicts(void)
+{
+    return &PSG_DictHolder;
+}
+
+int *PSG_GetDictSize(void)
+{
+    return &PSG_DictHolder_Count;
+}
+
 int PSG_AddClass(class_t _class)
 {
     if (*PSG_GetClassesSize())
@@ -3003,6 +3048,21 @@ array_t *PSG_GetArray_Ptr(int idx)
     return &((*PSG_GetArrays())[idx]);
 }
 
+int PSG_AddDict(dict_t nd)
+{
+    if (*PSG_GetDictSize())
+        (*PSG_GetDicts()) = OSF_Realloc(*PSG_GetDicts(), ((*PSG_GetDictSize()) + 1) * sizeof(array_t));
+
+    (*PSG_GetDicts())[*PSG_GetDictSize()] = nd;
+
+    return (*PSG_GetDictSize())++;
+}
+
+dict_t *PSG_GetDict_Ptr(int idx)
+{
+    return &((*PSG_GetDicts())[idx]);
+}
+
 stmt_t _PSF_ConstructImportLine(mod_t *mod, int idx)
 {
     psf_byte_array_t *arr = mod->ast;
@@ -3010,6 +3070,8 @@ stmt_t _PSF_ConstructImportLine(mod_t *mod, int idx)
     ret.type = STATEMENT_TYPE_IMPORT;
     ret.v.import_s.alias = NULL;
     ret.v.import_s.path = NULL;
+    ret.v.import_s.args = NULL;
+    ret.v.import_s.arg_count = 0;
 
     if (arr->nodes[idx].nval_type == AST_NVAL_TYPE_IDENTIFIER &&
         arr->nodes[idx].v.Identifier.is_token &&
@@ -3102,6 +3164,171 @@ stmt_t _PSF_ConstructImportLine(mod_t *mod, int idx)
         OSF_Free(name_path);
         ret.v.import_s.arg_count = 0;
         ret.v.import_s.args = NULL;
+
+        if (name_arr->size == 1 && ret.v.import_s.alias == NULL)
+        {
+            assert(name_arr->nodes[0].nval_type == AST_NVAL_TYPE_IDENTIFIER && SF_FMT("Error: Syntax Error"));
+            ret.v.import_s.alias = OSF_strdup(name_arr->nodes[0].v.Identifier.val);
+        }
+
+        OSF_Free(name_arr->nodes);
+        OSF_Free(name_arr);
+    }
+    else if (arr->nodes[idx].nval_type == AST_NVAL_TYPE_IDENTIFIER &&
+             arr->nodes[idx].v.Identifier.is_token &&
+             !strcmp(arr->nodes[idx].v.Identifier.val, "from"))
+    {
+        idx++; // Eat 'from'
+        int gb = 0;
+        psf_byte_array_t *name_arr = _PSF_newByteArray(),
+                         *args_arr = _PSF_newByteArray();
+        char *name_path = OSF_Malloc(sizeof(char));
+        *name_path = '\0';
+        ret.v.import_s.args = OSF_Malloc(sizeof(expr_t));
+
+        while (idx < arr->size)
+        {
+            psf_byte_t c = arr->nodes[idx];
+
+            if (c.nval_type == AST_NVAL_TYPE_OPERATOR)
+            {
+                if (!strcmp(c.v.Operator.val, "(") ||
+                    !strcmp(c.v.Operator.val, "{") ||
+                    !strcmp(c.v.Operator.val, "["))
+                    gb++;
+                else if (!strcmp(c.v.Operator.val, ")") ||
+                         !strcmp(c.v.Operator.val, "}") ||
+                         !strcmp(c.v.Operator.val, "]"))
+                    gb--;
+            }
+
+            if ((
+                    (c.nval_type == AST_NVAL_TYPE_IDENTIFIER &&
+                     c.v.Identifier.is_token &&
+                     !strcmp(c.v.Identifier.val, "import"))) &&
+                !gb)
+                break;
+
+            PSF_AST_ByteArray_AddNode(name_arr, c);
+            idx++;
+        }
+        gb = 0;
+        idx++; // Eat 'import'
+
+        while (idx < arr->size)
+        {
+            psf_byte_t c = arr->nodes[idx];
+
+            if (c.nval_type == AST_NVAL_TYPE_OPERATOR)
+            {
+                if (!strcmp(c.v.Operator.val, ",") &&
+                    !gb)
+                {
+                    if (args_arr->size)
+                    {
+                        if (ret.v.import_s.arg_count)
+                            ret.v.import_s.args = OSF_Realloc(ret.v.import_s.args, (ret.v.import_s.arg_count + 1) * sizeof(expr_t));
+
+                        ret.v.import_s.args[ret.v.import_s.arg_count++] = SF_FrameExpr_fromByte(args_arr);
+
+                        OSF_Free(args_arr->nodes);
+                        OSF_Free(args_arr);
+                        args_arr = _PSF_newByteArray();
+                    }
+
+                    idx++;
+                    continue;
+                }
+                if (!strcmp(c.v.Operator.val, "(") ||
+                    !strcmp(c.v.Operator.val, "{") ||
+                    !strcmp(c.v.Operator.val, "["))
+                    gb++;
+                else if (!strcmp(c.v.Operator.val, ")") ||
+                         !strcmp(c.v.Operator.val, "}") ||
+                         !strcmp(c.v.Operator.val, "]"))
+                    gb--;
+            }
+
+            if ((
+                    c.nval_type == AST_NVAL_TYPE_NEWLINE ||
+                    (c.nval_type == AST_NVAL_TYPE_IDENTIFIER &&
+                     c.v.Identifier.is_token &&
+                     !strcmp(c.v.Identifier.val, "as"))) &&
+                !gb)
+            {
+                if (args_arr->size)
+                {
+                    if (ret.v.import_s.arg_count)
+                        ret.v.import_s.args = OSF_Realloc(ret.v.import_s.args, (ret.v.import_s.arg_count + 1) * sizeof(expr_t));
+
+                    ret.v.import_s.args[ret.v.import_s.arg_count++] = SF_FrameExpr_fromByte(args_arr);
+
+                    OSF_Free(args_arr->nodes);
+                    OSF_Free(args_arr);
+                    args_arr = _PSF_newByteArray();
+                }
+
+                break;
+            }
+
+            PSF_AST_ByteArray_AddNode(args_arr, c);
+            idx++;
+        }
+
+        if (arr->nodes[idx].nval_type == AST_NVAL_TYPE_IDENTIFIER &&
+            arr->nodes[idx].v.Identifier.is_token &&
+            !strcmp(arr->nodes[idx].v.Identifier.val, "as"))
+        {
+            ret.v.import_s.alias = OSF_Malloc((strlen(arr->nodes[idx + 1].v.Identifier.val) + 1) * sizeof(char));
+            strcpy(ret.v.import_s.alias, arr->nodes[idx + 1].v.Identifier.val);
+
+            if (idx + 2 < arr->size)
+                assert(arr->nodes[idx + 2].nval_type == AST_NVAL_TYPE_NEWLINE && SF_FMT("Error: Syntax Error."));
+        }
+
+        for (size_t i = 0; i < name_arr->size; i++)
+        {
+            if (name_arr->nodes[i].nval_type == AST_NVAL_TYPE_IDENTIFIER)
+            {
+                name_path = OSF_Realloc(
+                    name_path,
+                    (strlen(name_path) +
+                     strlen(name_arr->nodes[i].v.Identifier.val) + 1) *
+                        sizeof(char));
+
+                strcat(name_path, name_arr->nodes[i].v.Identifier.val);
+            }
+            else if (name_arr->nodes[i].nval_type == AST_NVAL_TYPE_OPERATOR)
+            {
+                assert(!strcmp(name_arr->nodes[i].v.Operator.val, ".") &&
+                       SF_FMT("Error: Syntax Error"));
+
+                name_path = OSF_Realloc(
+                    name_path,
+                    (strlen(name_path) + 3) *
+                        sizeof(char));
+
+                if (!i)
+                    strcat(name_path, name_arr->nodes[i].v.Operator.val);
+#ifdef WIN32
+                strcat(name_path, "\\");
+#else
+                strcat(name_path, "/");
+#endif
+            }
+        }
+
+        name_path = OSF_Realloc(
+            name_path,
+            (strlen(name_path) + 4) *
+                sizeof(char));
+
+        strcat(name_path, ".sf");
+
+        name_path = _PSF_GetValidImportPath(name_path, mod->path_prefix != NULL ? 1 : 0, mod->path_prefix);
+
+        ret.v.import_s.path = OSF_strdup(name_path);
+        OSF_Free(name_path);
 
         if (name_arr->size == 1 && ret.v.import_s.alias == NULL)
         {
@@ -3413,4 +3640,159 @@ char *_PSF_GetValidImportPath(char *name_path, int extra_paths_count, ...)
 
     va_end(vl);
     return new_path;
+}
+
+expr_t _PSF_ConstructDict_fromByte(psf_byte_array_t *arr, int st, int *ed_ptr)
+{
+    expr_t ret;
+    ret.type = EXPR_TYPE_CONSTANT;
+    ret.v.constant.constant_type = CONSTANT_TYPE_DICT;
+
+    psf_byte_array_t *_key_v_pair = _PSF_newByteArray();
+    int gb = 0;
+    st++; // Eat '{'
+
+    dict_t ndres = Sf_Dict_New();
+
+    while (st < arr->size)
+    {
+        psf_byte_t c = arr->nodes[st];
+
+        if (c.nval_type == AST_NVAL_TYPE_OPERATOR)
+        {
+            if (!strcmp(c.v.Operator.val, ",") && !gb)
+            {
+                if (_key_v_pair->size)
+                {
+                    expr_t **kv = OSF_Malloc(2 * sizeof(expr_t *));
+                    kv[0] = OSF_Malloc(sizeof(expr_t));
+                    kv[1] = OSF_Malloc(sizeof(expr_t));
+
+                    _PSF_ConstructIndividualKeyVal_forDict_fromByte(_key_v_pair, &kv);
+
+                    Sf_Dict_Push(&ndres, kv[0][0], kv[1][0]);
+
+                    OSF_Free(_key_v_pair->nodes);
+                    OSF_Free(_key_v_pair);
+
+                    OSF_Free(kv[0]);
+                    OSF_Free(kv[1]);
+                    OSF_Free(kv);
+
+                    _key_v_pair = _PSF_newByteArray();
+                }
+
+                st++;
+                continue;
+            }
+
+            if (!strcmp(c.v.Operator.val, "}") && !gb)
+            {
+                if (_key_v_pair->size)
+                {
+                    expr_t **kv = OSF_Malloc(2 * sizeof(expr_t *));
+                    kv[0] = OSF_Malloc(sizeof(expr_t));
+                    kv[1] = OSF_Malloc(sizeof(expr_t));
+
+                    _PSF_ConstructIndividualKeyVal_forDict_fromByte(_key_v_pair, &kv);
+
+                    Sf_Dict_Push(&ndres, kv[0][0], kv[1][0]);
+
+                    OSF_Free(_key_v_pair->nodes);
+                    OSF_Free(_key_v_pair);
+
+                    OSF_Free(kv[0]);
+                    OSF_Free(kv[1]);
+                    OSF_Free(kv);
+                }
+
+                break;
+            }
+
+            if (!strcmp(c.v.Operator.val, "(") ||
+                !strcmp(c.v.Operator.val, "{") ||
+                !strcmp(c.v.Operator.val, "["))
+                gb++;
+            else if (!strcmp(c.v.Operator.val, ")") ||
+                     !strcmp(c.v.Operator.val, "}") ||
+                     !strcmp(c.v.Operator.val, "]"))
+                gb--;
+        }
+
+        PSF_AST_ByteArray_AddNode(_key_v_pair, c);
+        st++;
+    }
+
+    ret.v.constant.Dict.index = PSG_AddDict(ndres);
+
+    if (ed_ptr != NULL)
+        *ed_ptr = st;
+
+    return ret;
+}
+
+void _PSF_ConstructIndividualKeyVal_forDict_fromByte(psf_byte_array_t *arr, expr_t ***res)
+{
+    int gb = 0, i = 0;
+    psf_byte_array_t *_name_arr = _PSF_newByteArray(),
+                     *_val_arr = _PSF_newByteArray();
+
+    while (i < arr->size)
+    {
+        psf_byte_t c = arr->nodes[i];
+
+        if (c.nval_type == AST_NVAL_TYPE_OPERATOR)
+        {
+            if (!strcmp(c.v.Operator.val, ":") && !gb)
+            {
+                if (_name_arr->size)
+                {
+                    *((*res)[0]) = SF_FrameExpr_fromByte(_name_arr);
+                    OSF_Free(_name_arr->nodes);
+                    OSF_Free(_name_arr);
+                }
+                break;
+            }
+            if (!strcmp(c.v.Operator.val, "(") ||
+                !strcmp(c.v.Operator.val, "{") ||
+                !strcmp(c.v.Operator.val, "["))
+                gb++;
+            else if (!strcmp(c.v.Operator.val, ")") ||
+                     !strcmp(c.v.Operator.val, "}") ||
+                     !strcmp(c.v.Operator.val, "]"))
+                gb--;
+        }
+
+        PSF_AST_ByteArray_AddNode(_name_arr, c);
+        i++;
+    }
+    i++;    // Eat ':'
+    gb = 0; // Reset flag
+
+    while (i < arr->size)
+    {
+        psf_byte_t c = arr->nodes[i];
+
+        if (c.nval_type == AST_NVAL_TYPE_OPERATOR)
+        {
+            if (!strcmp(c.v.Operator.val, "(") ||
+                !strcmp(c.v.Operator.val, "{") ||
+                !strcmp(c.v.Operator.val, "["))
+                gb++;
+            else if (!strcmp(c.v.Operator.val, ")") ||
+                     !strcmp(c.v.Operator.val, "}") ||
+                     !strcmp(c.v.Operator.val, "]"))
+                gb--;
+        }
+
+        PSF_AST_ByteArray_AddNode(_val_arr, c);
+        i++;
+    }
+
+    if (_val_arr->size)
+    {
+        *((*res)[1]) = SF_FrameExpr_fromByte(_val_arr);
+        OSF_Free(_val_arr->nodes);
+        OSF_Free(_val_arr);
+    }
 }

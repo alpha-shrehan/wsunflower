@@ -1,0 +1,20 @@
+fun [].test(self)
+    write('Test [Array]:', self)
+
+fun ''.test(self)
+    write('Test [String]:', self)
+
+fun {:}.test(self)
+    write('Test [Dict]:', self)
+
+# Toggle
+TEST = 0
+
+if TEST
+    a = [1, 2, 3, 4, 5]
+    a.test()
+    a = 'hello'
+    # Calls \'\'.test()
+    a.test()
+    a = {1: 2}
+    a.test()
