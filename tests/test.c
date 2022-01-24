@@ -4,10 +4,13 @@
 
 int main(int argc, char const *argv[])
 {
+    if (argc < 2)
+        return printf("Usage: test_exe <file_name>\n");
+
     SF_InitEnv();
 
     psf_byte_array_t *ast;
-    ast = PSF_AST_fromString(read_file("tests/test.sf"));
+    ast = PSF_AST_fromString(read_file(argv[1]));
     PSF_AST_Preprocess_fromByteArray(ast);
     // PSF_AST_print(ast);
 
