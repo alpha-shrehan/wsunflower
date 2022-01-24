@@ -30,7 +30,7 @@ add_library(
 if (WIN32)
     target_link_libraries(sunflower ${CMAKE_CURRENT_SOURCE_DIR}/DLLs/gcmt-dll.dll)
 elseif (UNIX)
-    target_link_libraries(sunflower ${CMAKE_CURRENT_SOURCE_DIR}/StaticLibs/libgc.a ${CMAKE_CURRENT_SOURCE_DIR}/StaticLibs/libcord.a)
+    target_link_libraries(sunflower ${CMAKE_CURRENT_SOURCE_DIR}/StaticLibs/libgc.a ${CMAKE_CURRENT_SOURCE_DIR}/StaticLibs/libcord.a pthread)
 endif (WIN32)
 
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})

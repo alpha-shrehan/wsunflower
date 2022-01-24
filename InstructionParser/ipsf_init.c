@@ -18,7 +18,7 @@ char *strrev(char *str)
         *p2 ^= *p1;
         *p1 ^= *p2;
     }
-    
+
     return str;
 }
 #endif
@@ -529,7 +529,6 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
 
             SF_Module_safeDelete(f_cache_mod);
             OSF_Free(f_cache_mod);
-            i++;
         }
         break;
         case STATEMENT_TYPE_REPEAT:
@@ -819,8 +818,6 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                     BODY(mod)->body_size = pres_size;
                 }
             }
-
-            i++;
         }
         break;
         case STATEMENT_TYPE_ASSERT:
