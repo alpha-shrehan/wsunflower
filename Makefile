@@ -1,12 +1,19 @@
-# For those restless programmers who want to compile and run tests in one step
+# For those restless programmers (me) who want to compile and run tests in one step
 
 all: compile run
 
 compile:
-	cmake --build c:/Users/USER/Desktop/Sunflower/build --config Debug --target all -j 6
+	cmake --build ./build --config Debug --target all -j 6
 
 run:
-	.\build\tests\test_exe
+	ifeq ($(OS),Windows_NT)
+		.\build\tests\test_exe
+	else
+		./build/tests/test_exe
+	endif
 
 debug:
-	gdb .\build\tests\test_exe
+	ifeq ($(OS),Windows_NT)
+		gdb .\build\tests\test_exe
+	else
+		gdb ./build/tests/test_exe
