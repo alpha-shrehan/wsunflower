@@ -26,7 +26,12 @@ add_library(
     "./Parser/psf_gen_inst_ast.c"
     "./sunflower.c"
 )
-target_link_libraries(sunflower ${CMAKE_CURRENT_SOURCE_DIR}/DLLs/gcmt-dll.dll)
+
+if (WIN32)
+    target_link_libraries(sunflower ${CMAKE_CURRENT_SOURCE_DIR}/DLLs/gcmt-dll.dll)
+elseif (UNIX)
+    target_link_libraries(sunflower ${CMAKE_CURRENT_SOURCE_DIR}/StaticLibs/libgc.a ${CMAKE_CURRENT_SOURCE_DIR}/StaticLibs/libcord.a)
+endif (WIN32)
 
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})
