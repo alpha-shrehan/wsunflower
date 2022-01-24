@@ -1,19 +1,22 @@
 # For those restless programmers (me) who want to compile and run tests in one step
 
+OS ?= UNIX
+
 all: compile run
 
 compile:
 	cmake --build ./build --config Debug --target all -j 6
 
 run:
-	ifeq ($(OS),Windows_NT)
-		.\build\tests\test_exe
-	else
-		./build/tests/test_exe
-	endif
+ifeq ($(OS),Windows_NT)
+	.\build\tests\test_exe tests/test.sf
+else
+	./build/tests/test_exe tests/test.sf
+endif
 
 debug:
-	ifeq ($(OS),Windows_NT)
-		gdb .\build\tests\test_exe
-	else
-		gdb ./build/tests/test_exe
+ifeq ($(OS),Windows_NT)
+	gdb .\build\tests\test_exe
+else
+	gdb ./build/tests/test_exe
+endif
