@@ -285,8 +285,8 @@ expr_t *NativeFunctionnativeType(mod_t *mod_ref)
             break;
         }
     }
-        break;
-    
+    break;
+
     default:
         break;
     }
@@ -311,13 +311,13 @@ expr_t *NativeFunctionLen(mod_t *mod_ref)
         case CONSTANT_TYPE_ARRAY:
             __res->v.constant.Int.value = ARRAY(gve.v.constant.Array.index).len;
             break;
-        
+
         default:
             break;
         }
     }
-        break;
-    
+    break;
+
     default:
         break;
     }
@@ -334,7 +334,8 @@ void SFBuiltIn_AddDefaultFunctions(mod_t *mod)
         .v.Native = {
             .arg_size = 3,
             .args = OSF_Malloc(3 * sizeof(expr_t)),
-            .f = NativeFunctionWrite}};
+            .f = NativeFunctionWrite},
+        .parent = mod};
 
     _write_fun.v.Native.args[0] = (expr_t){
         .type = EXPR_TYPE_VARIABLE,
@@ -376,7 +377,8 @@ void SFBuiltIn_AddDefaultFunctions(mod_t *mod)
         .v.Native = {
             .arg_size = 1,
             .args = OSF_Malloc(sizeof(expr_t)),
-            .f = NativeFunctionInput}};
+            .f = NativeFunctionInput},
+        .parent = mod};
 
     _input_fun.v.Native.args[0] = (expr_t){
         .type = EXPR_TYPE_VARIABLE,
@@ -400,7 +402,8 @@ void SFBuiltIn_AddDefaultFunctions(mod_t *mod)
         .v.Native = {
             .arg_size = 1,
             .args = OSF_Malloc(sizeof(expr_t)),
-            .f = NativeFunctionInt}};
+            .f = NativeFunctionInt},
+        .parent = mod};
 
     _int_fun.v.Native.args[0] = (expr_t){
         .type = EXPR_TYPE_VARIABLE,
@@ -415,7 +418,8 @@ void SFBuiltIn_AddDefaultFunctions(mod_t *mod)
         .v.Native = {
             .arg_size = 1,
             .args = OSF_Malloc(sizeof(expr_t)),
-            .f = NativeFunctionEval}};
+            .f = NativeFunctionEval},
+        .parent = mod};
 
     _eval_fun.v.Native.args[0] = (expr_t){
         .type = EXPR_TYPE_VARIABLE,
@@ -430,7 +434,8 @@ void SFBuiltIn_AddDefaultFunctions(mod_t *mod)
         .v.Native = {
             .arg_size = 1,
             .args = OSF_Malloc(sizeof(expr_t)),
-            .f = NativeFunctionnativeType}};
+            .f = NativeFunctionnativeType},
+        .parent = mod};
 
     _nativeType_fun.v.Native.args[0] = (expr_t){
         .type = EXPR_TYPE_VARIABLE,
@@ -445,7 +450,8 @@ void SFBuiltIn_AddDefaultFunctions(mod_t *mod)
         .v.Native = {
             .arg_size = 1,
             .args = OSF_Malloc(sizeof(expr_t)),
-            .f = NativeFunctionLen}};
+            .f = NativeFunctionLen},
+        .parent = mod};
 
     _len_fun.v.Native.args[0] = (expr_t){
         .type = EXPR_TYPE_VARIABLE,
@@ -534,7 +540,7 @@ expr_t *Native_Proto_Array_pop(mod_t *mod_ref)
                vmem.type == EXPR_TYPE_CONSTANT &&
                vmem.v.constant.constant_type == CONSTANT_TYPE_ARRAY) &&
            SF_FMT("Error: seg_fault"));
-    
+
     assert((
                vdata.type == EXPR_TYPE_CONSTANT &&
                vdata.v.constant.constant_type == CONSTANT_TYPE_INT) &&
@@ -673,7 +679,7 @@ void SFAdd_Protos_for_built_in_types(void)
                 .function_s = {
                     .name = "pop",
                     .index = _native_dtype_array_method_popidx}}});
-    
+
     fun_t _native_dtype_array_method__str__ = (fun_t){
         .name = "__str__",
         .is_native = 1,

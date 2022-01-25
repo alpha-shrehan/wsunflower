@@ -255,8 +255,8 @@ expr_t SF_FrameExpr_fromByte(psf_byte_array_t *arr)
                         if (cv.nval_type == AST_NVAL_TYPE_OPERATOR)
                         {
                             if (!strcmp(cv.v.Operator.val, "(") ||
-                                !strcmp(cv.v.Operator.val, "[") ||
-                                !strcmp(cv.v.Operator.val, "{"))
+                                !strcmp(cv.v.Operator.val, "{") ||
+                                !strcmp(cv.v.Operator.val, "["))
                                 gb++;
                             else if (!strcmp(cv.v.Operator.val, ")") ||
                                      !strcmp(cv.v.Operator.val, "]") ||
@@ -679,59 +679,104 @@ expr_t SF_FrameExpr_fromByte(psf_byte_array_t *arr)
             }
             else if (!strcmp(op, "("))
             {
-                // Bad code ahead
-                int pres_arr_size = arr->size;
-                arr->size = i + 1; // Skip '('
-                int gb = 0;
+                expr_t ret_cpy = ret;
+                ret.type = EXPR_TYPE_FUNCTION_CALL;
+                ret.v.function_call.args = OSF_Malloc(sizeof(expr_t));
+                ret.v.function_call.arg_size = 0;
 
-                while (arr->size < pres_arr_size)
+                psf_byte_array_t *args_arr = _PSF_newByteArray();
+
+                int j = i + 1, gb = 0;
+                while (j < arr->size)
                 {
-                    psf_byte_t c = arr->nodes[arr->size];
-
-                    if (c.nval_type == AST_NVAL_TYPE_OPERATOR)
+                    if (arr->nodes[j].nval_type == AST_NVAL_TYPE_OPERATOR)
                     {
-                        if (!strcmp(c.v.Operator.val, ")") && !gb)
+                        const char *op = arr->nodes[j].v.Operator.val;
+
+                        if (!strcmp(op, ")") && !gb)
                         {
-                            arr->size++;
+                            if (args_arr->size)
+                            {
+                                expr_t arg_res = SF_FrameExpr_fromByte(args_arr);
+
+                                if (ret.v.function_call.arg_size)
+                                    ret.v.function_call.args = (expr_t *)OSF_Realloc(
+                                        ret.v.function_call.args,
+                                        (ret.v.function_call.arg_size + 1) *
+                                            sizeof(expr_t));
+
+                                ret.v.function_call.args[ret.v.function_call.arg_size++] = arg_res;
+                            }
+                            // printf("[%d]\n", ret.v.function_call.arg_size);
+                            OSF_Free(args_arr->nodes);
+                            OSF_Free(args_arr);
                             break;
                         }
-                        if (!strcmp(c.v.Operator.val, "(") ||
-                            !strcmp(c.v.Operator.val, "{") ||
-                            !strcmp(c.v.Operator.val, "["))
+
+                        if (!strcmp(op, ",") && !gb)
+                        {
+                            expr_t arg_res = SF_FrameExpr_fromByte(args_arr);
+
+                            if (ret.v.function_call.arg_size)
+                                ret.v.function_call.args = (expr_t *)OSF_Realloc(
+                                    ret.v.function_call.args,
+                                    (ret.v.function_call.arg_size + 1) *
+                                        sizeof(expr_t));
+
+                            ret.v.function_call.args[ret.v.function_call.arg_size++] = arg_res;
+
+                            OSF_Free(args_arr->nodes);
+                            OSF_Free(args_arr);
+                            args_arr = _PSF_newByteArray();
+                            j++;
+                            continue;
+                        }
+
+                        if (!strcmp(op, "(") ||
+                            !strcmp(op, "{") ||
+                            !strcmp(op, "["))
                             gb++;
-                        else if (!strcmp(c.v.Operator.val, ")") ||
-                                 !strcmp(c.v.Operator.val, "}") ||
-                                 !strcmp(c.v.Operator.val, "]"))
+                        else if (!strcmp(op, ")") ||
+                                 !strcmp(op, "}") ||
+                                 !strcmp(op, "]"))
                             gb--;
                     }
 
-                    arr->size++;
+                    PSF_AST_ByteArray_AddNode(args_arr, arr->nodes[j]);
+
+                    j++;
                 }
 
-                mod_t *temp_mod = SF_CreateModule(MODULE_TYPE_FILE, arr);
-                SF_FrameIT_fromAST(temp_mod);
+                // for (size_t j = 0; j < ret.v.function_call.arg_size; j++)
+                // {
+                //     PSG_PrintExprType(ret.v.function_call.args[j].type);
+                // }
 
-                ret = *((*(BODY(temp_mod)->body)).v.expr.expr);
-                if (!ret.v.function_call.is_func_call)
+                ret.v.function_call.name = OSF_Malloc(sizeof(expr_t));
+                ret.v.function_call.is_func_call = 1;
+                int skip_f = 0; // Should I skip check for function call?
+
+                if (i)
                 {
-                    switch (ret.v.function_call.arg_size)
-                    {
-                    case 1:
-                        ret = *(ret.v.function_call.args);
-                        break;
+                    if (arr->nodes[i - 1].nval_type == AST_NVAL_TYPE_NEWLINE ||
+                        arr->nodes[i - 1].nval_type == AST_NVAL_TYPE_TABSPACE)
+                        skip_f = 1;
+                }
+                else
+                    skip_f = 1;
 
-                    default:
-                        break;
-                    }
+                if (!skip_f)
+                    *(ret.v.function_call.name) = ret_cpy;
+                else
+                {
+                    ret.v.function_call.is_func_call = 0;
+                    *(ret.v.function_call.name) = (expr_t){
+                        .type = EXPR_TYPE_VARIABLE,
+                        .v.variable.name = NULL};
                 }
 
-                OSF_Free(BODY(temp_mod)->body);
-                OSF_Free(temp_mod->var_holds);
-                OSF_Free(temp_mod);
-
-                i = arr->size - 1; // Get back to ')', so for loop can eat it
-                arr->size = pres_arr_size;
-                break;
+                i = j;
+                continue;
             }
             else if (!strcmp(op, "["))
             {
@@ -904,10 +949,27 @@ void SF_FrameIT_fromAST(mod_t *mod)
             if (!strcmp(op, "="))
             {
                 psf_byte_array_t *val_arr = _PSF_newByteArray();
-                int j = i + 1;
+                int j = i + 1, gb = 0;
 
-                while (mod->ast->nodes[j].nval_type != AST_NVAL_TYPE_NEWLINE && j < mod->ast->size)
+                while (j < mod->ast->size)
                 {
+                    psf_byte_t c = mod->ast->nodes[j];
+
+                    if (c.nval_type == AST_NVAL_TYPE_OPERATOR)
+                    {
+                        if (!strcmp(c.v.Operator.val, "(") ||
+                            !strcmp(c.v.Operator.val, "{") ||
+                            !strcmp(c.v.Operator.val, "["))
+                            gb++;
+                        else if (!strcmp(c.v.Operator.val, ")") ||
+                                 !strcmp(c.v.Operator.val, "}") ||
+                                 !strcmp(c.v.Operator.val, "]"))
+                            gb--;
+                    }
+
+                    if (c.nval_type == AST_NVAL_TYPE_NEWLINE && !gb)
+                        break;
+
                     PSF_AST_ByteArray_AddNode(val_arr, mod->ast->nodes[j]);
                     j++;
                 }
@@ -1088,6 +1150,52 @@ void SF_FrameIT_fromAST(mod_t *mod)
 
                 i = j;
                 continue;
+            }
+            else if (!strcmp(op, "{"))
+            {
+                int gb = 0;
+                psf_byte_array_t *d_arr = _PSF_newByteArray();
+
+                PSF_AST_ByteArray_AddNode(d_arr, mod->ast->nodes[i]);
+                i++; // Eat '{'
+
+                while (i < mod->ast->size)
+                {
+                    psf_byte_t c = mod->ast->nodes[i];
+
+                    if (c.nval_type == AST_NVAL_TYPE_OPERATOR)
+                    {
+                        if (!strcmp(c.v.Operator.val, "}") && !gb)
+                        {
+                            PSF_AST_ByteArray_AddNode(d_arr, c);
+                            break;
+                        }
+
+                        if (!strcmp(c.v.Operator.val, "(") ||
+                            !strcmp(c.v.Operator.val, "{") ||
+                            !strcmp(c.v.Operator.val, "["))
+                            gb++;
+                        else if (!strcmp(c.v.Operator.val, ")") ||
+                                 !strcmp(c.v.Operator.val, "}") ||
+                                 !strcmp(c.v.Operator.val, "]"))
+                            gb--;
+                    }
+
+                    PSF_AST_ByteArray_AddNode(d_arr, c);
+
+                    i++;
+                }
+                expr_t e_res = SF_FrameExpr_fromByte(d_arr);
+
+                stmt_t new_stmt;
+                new_stmt.type = STATEMENT_TYPE_EXPR;
+                new_stmt.v.expr.expr = OSF_Malloc(sizeof(expr_t));
+                *(new_stmt.v.expr.expr) = e_res;
+
+                PSG_AddStmt_toMod(mod, new_stmt);
+
+                OSF_Free(d_arr->nodes);
+                OSF_Free(d_arr);
             }
             else if (!strcmp(op, "."))
             {
@@ -1308,6 +1416,47 @@ void SF_FrameIT_fromAST(mod_t *mod)
                 }
 
                 PSG_AddStmt_toMod(mod, new_stmt);
+            }
+            else if (!strcmp(op, "@"))
+            {
+                stmt_t nstmt;
+                nstmt.type = STATEMENT_TYPE_DECORATOR;
+                nstmt.v.decorator_stmt.val = OSF_Malloc(sizeof(expr_t));
+
+                psf_byte_array_t *ln = _PSF_newByteArray();
+                i++; // Eat '@'
+                int gb = 0;
+
+                while (i < mod->ast->size)
+                {
+                    psf_byte_t c = mod->ast->nodes[i];
+
+                    if (c.nval_type == AST_NVAL_TYPE_OPERATOR)
+                    {
+                        if (!strcmp(c.v.Operator.val, "(") ||
+                            !strcmp(c.v.Operator.val, "{") ||
+                            !strcmp(c.v.Operator.val, "["))
+                            gb++;
+                        else if (!strcmp(c.v.Operator.val, ")") ||
+                                 !strcmp(c.v.Operator.val, "}") ||
+                                 !strcmp(c.v.Operator.val, "]"))
+                            gb--;
+                    }
+
+                    if (c.nval_type == AST_NVAL_TYPE_NEWLINE && !gb)
+                        break;
+
+                    PSF_AST_ByteArray_AddNode(ln, c);
+                    i++;
+                }
+
+                expr_t lv = SF_FrameExpr_fromByte(ln);
+                *(nstmt.v.decorator_stmt.val) = lv;
+
+                PSG_AddStmt_toMod(mod, nstmt);
+
+                OSF_Free(ln->nodes);
+                OSF_Free(ln);
             }
         }
         break;
@@ -1591,7 +1740,22 @@ void SF_FrameIT_fromAST(mod_t *mod)
                 {
                     int bd_sz = 0;
                     new_stmt = _PSF_ConstructFunctionStmt(mod->ast, i, &bd_sz);
-                    PSG_AddStmt_toMod(mod, new_stmt);
+                    int append = 1;
+
+                    if (BODY(mod)->body_size)
+                    {
+                        if (BODY(mod)->body[BODY(mod)->body_size - 1].type == STATEMENT_TYPE_DECORATOR)
+                        {
+                            new_stmt.v.function_decl.deco_inh = OSF_Malloc(sizeof(expr_t));
+                            *(new_stmt.v.function_decl.deco_inh) = *(BODY(mod)->body[BODY(mod)->body_size - 1].v.decorator_stmt.val);
+                            append = 0;
+                        }
+                    }
+
+                    if (append)
+                        PSG_AddStmt_toMod(mod, new_stmt);
+                    else
+                        BODY(mod)->body[BODY(mod)->body_size - 1] = new_stmt;
 
                     int gb = 0;
                     while (i < mod->ast->size)
@@ -2672,6 +2836,7 @@ stmt_t _PSF_ConstructFunctionStmt(psf_byte_array_t *arr, int idx, int *bd_sz_ptr
     result.type = STATEMENT_TYPE_FUNCTION_DECL;
     result.v.function_decl.args = OSF_Malloc(sizeof(var_t));
     result.v.function_decl.arg_size = 0;
+    result.v.function_decl.deco_inh = NULL;
 
     psf_byte_array_t *name = _PSF_newByteArray(),
                      *args = _PSF_newByteArray(),

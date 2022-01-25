@@ -114,6 +114,12 @@ psf_byte_array_t *PSF_AST_fromString(const char *);
 void PSF_AST_print(psf_byte_array_t *);
 
 /**
+ * @brief Print single AST node to stdout
+ * @param ast AST
+ */
+void PSF_AST_print_node(psf_byte_t);
+
+/**
  * @brief Construct operator from string
  * @param op1 First operand
  * @param op2 Second operand

@@ -17,7 +17,7 @@ psf_byte_array_t *PSF_AST_fromString(const char *src)
         ast = _PSF_newByteArray();
         return ast;
     }
-    
+
     ast = _PSF_New_AST_FromString(src);
 
     return ast;
@@ -70,6 +70,53 @@ void PSF_AST_print(psf_byte_array_t *ast)
             printf("\n");
             break;
         }
+    }
+}
+
+void PSF_AST_print_node(psf_byte_t ast)
+{
+    const char *nv_re[] = {"AST_NVAL_TYPE_DATA_TYPE",
+                           "AST_NVAL_TYPE_INT",
+                           "AST_NVAL_TYPE_FLOAT",
+                           "AST_NVAL_TYPE_STRING",
+                           "AST_NVAL_TYPE_IDENTIFIER",
+                           "AST_NVAL_TYPE_NEWLINE",
+                           "AST_NVAL_TYPE_COMMENT",
+                           "AST_NVAL_TYPE_TABSPACE",
+                           "AST_NVAL_TYPE_OPERATOR",
+                           "AST_NVAL_TYPE_BOOL"};
+
+    printf("%s ", nv_re[ast.nval_type]);
+
+    switch (ast.nval_type)
+    {
+    case AST_NVAL_TYPE_TABSPACE:
+        printf("%d\n", ast.v.Tabspace.len);
+        break;
+    case AST_NVAL_TYPE_STRING:
+        printf("%s\n", ast.v.String.val);
+        break;
+    case AST_NVAL_TYPE_FLOAT:
+        printf("%f\n", ast.v.Float.val);
+        break;
+    case AST_NVAL_TYPE_INT:
+        printf("%d\n", ast.v.Int.val);
+        break;
+    case AST_NVAL_TYPE_IDENTIFIER:
+        printf("(is_token: %d) %s\n", ast.v.Identifier.is_token, ast.v.Identifier.val);
+        break;
+    case AST_NVAL_TYPE_COMMENT:
+        printf("%s\n", ast.v.Comment.cmt);
+        break;
+    case AST_NVAL_TYPE_DATA_TYPE:
+        printf("%s\n", ast.v.DataType.val);
+        break;
+    case AST_NVAL_TYPE_OPERATOR:
+        printf("%s\n", ast.v.Operator.val);
+        break;
+    default:
+        printf("\n");
+        break;
     }
 }
 
@@ -155,7 +202,7 @@ psf_byte_array_t *_PSF_New_AST_FromString(const char *src)
             continue;
         }
 
-        if (strstr("+-*/%^=<>!&|~:;,.()[]{}", (char[]){c, '\0'}) != NULL) // Operator
+        if (strstr("+-*/%^=<>!&|~:;,.()[]{}@", (char[]){c, '\0'}) != NULL) // Operator
         {
             char op1 = 0, op2 = 0, op3 = 0;
 
@@ -367,6 +414,7 @@ char *_PSF_Construct_Operator_fromString(char op1, char op2, char op3)
     case ';':
     case '.':
     case ':':
+    case '@':
     {
         res[0] = op1;
     }
@@ -410,9 +458,9 @@ char *_PSF_Construct_Operator_fromString(char op1, char op2, char op3)
 
 psf_byte_array_t *_PSF_newByteArray(void)
 {
-    psf_byte_array_t *_new = (psf_byte_array_t *) OSF_Malloc(sizeof(psf_byte_t));
+    psf_byte_array_t *_new = (psf_byte_array_t *)OSF_Malloc(sizeof(psf_byte_t));
 
-    _new->nodes = (psf_byte_t *) OSF_Malloc(sizeof(psf_byte_t));
+    _new->nodes = (psf_byte_t *)OSF_Malloc(sizeof(psf_byte_t));
     _new->size = 0;
 
     return _new;

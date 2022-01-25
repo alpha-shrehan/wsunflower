@@ -11,7 +11,7 @@ char *strrev(char *str)
 
     if (!str || !*str)
         return str;
-    
+
     for (p1 = str, p2 = str + strlen(str) - 1; p2 > p1; ++p1, --p2)
     {
         *p1 ^= *p2;
@@ -518,6 +518,80 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                 OSF_Free(_itc_val);
             }
             break;
+            case CONSTANT_TYPE_DICT:
+            {
+                dict_t *dc = PSG_GetDict_Ptr(cond_red.v.constant.Dict.index);
+
+                if (!dc->evaluated)
+                    IPSF_ReduceExpr_toConstant(mod, cond_red);
+
+                assert(
+                    curr.v.for_stmt.var_size <= 2 &&
+                    SF_FMT("Error: Dictionary iteration allows a maximum of 2 substitution variables."));
+
+                for (size_t j = 0; j < dc->len; j++)
+                {
+                    expr_t key = dc->keys[j],
+                           val = dc->vals[j];
+
+                    if (curr.v.for_stmt.var_size == 1)
+                    {
+                        expr_t *kvv = OSF_Malloc(2 * sizeof(expr_t));
+                        kvv[0] = key;
+                        kvv[1] = val;
+
+                        array_t ac = Sf_Array_New_fromExpr(kvv, 2);
+
+                        expr_t v = (expr_t){
+                            .type = EXPR_TYPE_CONSTANT,
+                            .v = {
+                                .constant = {
+                                    .constant_type = CONSTANT_TYPE_ARRAY,
+                                    .Array = {
+                                        .index = PSG_AddArray(ac)}}}};
+
+                        _IPSF_AddVar_toModule(
+                            f_mod,
+                            (*(curr.v.for_stmt.vars)).name,
+                            v);
+                    }
+                    else
+                    {
+                        _IPSF_AddVar_toModule(
+                            f_mod,
+                            (*(curr.v.for_stmt.vars)).name,
+                            key);
+
+                        _IPSF_AddVar_toModule(
+                            f_mod,
+                            curr.v.for_stmt.vars[1].name,
+                            val);
+                    }
+
+                    BODY(f_mod)->body = curr.v.for_stmt.body;
+                    BODY(f_mod)->body_size = curr.v.for_stmt.body_size;
+
+                    OSF_Free(IPSF_ExecIT_fromMod(f_mod, err));
+
+                    if (err != NULL)
+                        if (*err != IPSF_OK)
+                            return NULL;
+
+                    if (f_mod->returns != NULL)
+                    {
+                        mod->returns = f_mod->returns;
+                        doBreak = 1;
+                    }
+
+                    // SF_Module_safeDelete(f_mod);
+                    // f_mod->var_holds = OSF_Malloc(sizeof(var_t));
+                    // f_mod->var_holds_size = 0;
+
+                    if (doBreak)
+                        break;
+                }
+            }
+            break;
             default:
                 break;
             }
@@ -575,6 +649,7 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
             _fdef.v.Coded.args = curr.v.function_decl.args;
             _fdef.v.Coded.body = curr.v.function_decl.body;
             _fdef.v.Coded.body_size = curr.v.function_decl.body_size;
+            _fdef.parent = mod;
 
             if (curr.v.function_decl.takes_var_args)
                 _fdef.arg_acceptance_count = -1;
@@ -582,11 +657,36 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                 _fdef.arg_acceptance_count = -2;
 
             int f_idx = PSG_AddFunction(_fdef);
-            *RET = (expr_t){.type = EXPR_TYPE_FUNCTION, .v.function_s = {.index = f_idx, .name = (char *)fname}};
+            expr_t retv = (expr_t){.type = EXPR_TYPE_FUNCTION, .v.function_s = {.index = f_idx, .name = (char *)fname}};
+
+            *RET = retv;
 
             if (fname != NULL)
             {
                 _IPSF_AddVar_toModule(mod, (char *)fname, *RET);
+
+                if (curr.v.function_decl.deco_inh != NULL)
+                {
+                    expr_t deco_red = IPSF_ReduceExpr_toConstant(mod, *(curr.v.function_decl.deco_inh));
+
+                    expr_t *exp = OSF_Malloc(sizeof(expr_t));
+                    exp->type = EXPR_TYPE_FUNCTION_CALL;
+                    exp->v.function_call.arg_size = 1;
+                    exp->v.function_call.args = RET;
+                    exp->v.function_call.is_func_call = 1;
+                    exp->v.function_call.name = &deco_red;
+
+                    stmt_t vd;
+                    vd.type = STATEMENT_TYPE_VAR_DECL;
+                    vd.v.var_decl.expr = exp;
+                    vd.v.var_decl.name = &((expr_t) {
+                        .type = EXPR_TYPE_VARIABLE,
+                        .v.variable.name = (char *)fname
+                    });
+
+                    IPSF_ExecVarDecl_fromStmt(mod, vd, NULL);
+                    OSF_Free(exp);
+                }
             }
         }
         break;
@@ -943,13 +1043,14 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
             // expr_t get_f = IPSF_GetVar_fromMod(mod, fun_name, err)->val;
             int *gfsz = PSG_GetFunctionsSize();
             fun_t **gffs = PSG_GetFunctions();
-            mod_t *m_pass = mod;
+
             expr_t get_f = _red_nme;
+            fun_t fun_s = (*gffs)[get_f.v.function_s.index];
+            mod_t *m_pass = fun_s.parent;
+
             assert(get_f.v.function_s.index < *gfsz && SF_FMT("Error: seg_fault"));
 
-            fun_t fun_s = (*gffs)[get_f.v.function_s.index];
-
-            expr_t *f_args = OSF_Malloc((expr->v.function_call.arg_size) * sizeof(expr_t));
+            expr_t *f_args = OSF_Malloc((expr->v.function_call.arg_size ? expr->v.function_call.arg_size: 1) * sizeof(expr_t));
             int fa_beg = 0;
 
             if (OSF_MemorySafeToFree(get_f.next)) // If it was OSF_Mallocated, this condition would be true
@@ -1995,7 +2096,7 @@ char *_IPSF_ObjectRepr(expr_t expr, int recur)
         break;
         case CONSTANT_TYPE_STRING:
         {
-            _Res = OSF_Malloc(strlen(expr.v.constant.String.value) * sizeof(char));
+            _Res = OSF_Malloc((strlen(expr.v.constant.String.value) + 2) * sizeof(char));
             *_Res = '\0';
             dy = 1;
             for (size_t j = recur ? 0 : 1; j < strlen(expr.v.constant.String.value) - (recur ? 0 : 1); j++)
@@ -2131,7 +2232,7 @@ char *_IPSF_ObjectRepr(expr_t expr, int recur)
     char *rr = OSF_strdup(_Res != NULL ? _Res : "<seg_fault_i342>");
 
     if (dy)
-        OSF_IntFree(_Res);
+        OSF_Free(_Res);
 
     return rr;
 }
@@ -2239,11 +2340,6 @@ expr_t _IPSF_ExecUnaryArithmetic(mod_t *mod, expr_t *expr)
     }
 
     operator_count = constant_count = 0;
-
-    // for (size_t i = 0; i < sibs_count; i++)
-    // {
-    //     printf("%d\n", sibs[i].v.constant.Int.value);
-    // }
 
     // '/' operator
     for (size_t i = 0; i < order_count; i++)
@@ -2862,7 +2958,7 @@ expr_t *_IPSF_CallFunction(fun_t fun_s, expr_t *args, int arg_size, mod_t *mod)
             _collectivise_args[_collectivise_args_count++] = args[j];
     }
 
-    fun_mod->parent = mod;
+    fun_mod->parent = fun_s.parent;
     _cargs_without_voids = _PSF_RemoveVoidsFromExprArray(_collectivise_args, _collectivise_args_count, &_cargs_without_voids_size);
 
     switch (fun_s.arg_acceptance_count)
@@ -2924,6 +3020,17 @@ expr_t *_IPSF_CallFunction(fun_t fun_s, expr_t *args, int arg_size, mod_t *mod)
     break;
     }
 
+    if (fun_s.parent != NULL)
+    {
+        for (size_t i = 0; i < fun_s.parent->var_holds_size; i++)
+        {
+            _IPSF_AddVar_toModule(
+                fun_mod,
+                fun_s.parent->var_holds[i].name,
+                fun_s.parent->var_holds[i].val);
+        }
+    }
+
     if (fun_s.is_native)
     {
         expr_t *res = fun_s.v.Native.f(fun_mod);
@@ -2960,8 +3067,8 @@ expr_t *_IPSF_CallFunction(fun_t fun_s, expr_t *args, int arg_size, mod_t *mod)
     OSF_Free(_cargs_without_voids);
     OSF_Free(_collectivise_args);
 
-    SF_Module_safeDelete(fun_mod);
-    OSF_Free(fun_mod);
+    // SF_Module_safeDelete(fun_mod);
+    // OSF_Free(fun_mod);
 
     return RES;
 }

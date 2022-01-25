@@ -16,7 +16,7 @@ endif
 
 debug:
 ifeq ($(OS),Windows_NT)
-	gdb .\build\tests\test_exe
+	gdb --args .\build\tests\test_exe tests/test.sf
 else
-	gdb ./build/tests/test_exe
+	gdb --args ./build/tests/test_exe tests/test.sf
 endif

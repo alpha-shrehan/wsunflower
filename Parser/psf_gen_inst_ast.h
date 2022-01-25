@@ -262,7 +262,8 @@ enum StatementTypeEnum
     STATEMENT_TYPE_VAR_REF,
     STATEMENT_TYPE_REPEAT,
     STATEMENT_TYPE_SWITCH,
-    STATEMENT_TYPE_ASSERT
+    STATEMENT_TYPE_ASSERT,
+    STATEMENT_TYPE_DECORATOR
 };
 
 struct _conditional_struct
@@ -352,6 +353,7 @@ struct _stmt
             int body_size;
             int takes_def_args;
             int takes_var_args;
+            expr_t *deco_inh;
         } function_decl;
 
         struct
@@ -407,6 +409,11 @@ struct _stmt
             expr_t *message;
         } assert_stmt;
 
+        struct
+        {
+            expr_t *val;
+        } decorator_stmt;
+
     } v;
 };
 
@@ -456,6 +463,7 @@ struct _fun
     char *name;
     int is_native;
     int arg_acceptance_count; // -1 for va_args, -2 for args with pre-def values
+    mod_t *parent;
 
     union
     {
