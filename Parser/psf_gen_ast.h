@@ -4,6 +4,11 @@
 #include <stdlib.h>
 #include <assert.h>
 
+#ifdef assert
+#undef assert
+#define assert(X)
+#endif
+
 #include <Object/osf_mem.h>
 
 #define SF_FMT(X) X
@@ -26,6 +31,7 @@ enum psf_gen_ast_nval_type_e
 struct psf_gen_ast_nval_s
 {
     enum psf_gen_ast_nval_type_e nval_type;
+    int line;
 
     union
     {

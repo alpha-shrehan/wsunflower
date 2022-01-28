@@ -109,6 +109,7 @@ struct __mod_child_body_type_hold_s *_mod_body(mod_t *mod_ref)
 expr_t SF_FrameExpr_fromByte(psf_byte_array_t *arr)
 {
     expr_t ret;
+    ret.line = arr->nodes->line;
     int ret_now = 0, gb = 0;
 
     for (int i = arr->size - 1; i >= 0; i--)
@@ -936,9 +937,15 @@ expr_t SF_FrameExpr_fromByte(psf_byte_array_t *arr)
  */
 void SF_FrameIT_fromAST(mod_t *mod)
 {
+    int lincr = 1;
+
     for (size_t i = 0; i < mod->ast->size; i++)
     {
         psf_byte_t curr = mod->ast->nodes[i];
+        mod->ast->nodes[i].line = lincr;
+
+        if (curr.nval_type == AST_NVAL_TYPE_NEWLINE)
+            lincr++;
 
         switch (curr.nval_type)
         {
@@ -978,6 +985,7 @@ void SF_FrameIT_fromAST(mod_t *mod)
                 *val_res = SF_FrameExpr_fromByte(val_arr);
 
                 stmt_t new_stmt;
+                new_stmt.line = curr.line;
                 new_stmt.type = STATEMENT_TYPE_VAR_DECL;
                 new_stmt.v.var_decl.name = OSF_Malloc(sizeof(expr_t));
 
@@ -1016,6 +1024,7 @@ void SF_FrameIT_fromAST(mod_t *mod)
             {
                 // IDENTIFIER ( VA_ARGS )
                 stmt_t new_stmt;
+                new_stmt.line = curr.line;
                 new_stmt.type = STATEMENT_TYPE_EXPR;
                 new_stmt.v.expr.expr = (expr_t *)OSF_Malloc(sizeof(expr_t));
                 new_stmt.v.expr.expr->type = EXPR_TYPE_FUNCTION_CALL;
@@ -1188,6 +1197,7 @@ void SF_FrameIT_fromAST(mod_t *mod)
                 expr_t e_res = SF_FrameExpr_fromByte(d_arr);
 
                 stmt_t new_stmt;
+                new_stmt.line = curr.line;
                 new_stmt.type = STATEMENT_TYPE_EXPR;
                 new_stmt.v.expr.expr = OSF_Malloc(sizeof(expr_t));
                 *(new_stmt.v.expr.expr) = e_res;
@@ -1200,6 +1210,7 @@ void SF_FrameIT_fromAST(mod_t *mod)
             else if (!strcmp(op, "."))
             {
                 stmt_t new_stmt;
+                new_stmt.line = curr.line;
                 new_stmt.type = STATEMENT_TYPE_EXPR;
                 new_stmt.v.expr.expr = OSF_Malloc(sizeof(expr_t));
                 new_stmt.v.expr.expr->type = EXPR_TYPE_MEMBER_ACCESS;
@@ -1262,6 +1273,7 @@ void SF_FrameIT_fromAST(mod_t *mod)
                 *val_res = SF_FrameExpr_fromByte(val_arr);
 
                 stmt_t new_stmt;
+                new_stmt.line = curr.line;
                 new_stmt.type = STATEMENT_TYPE_VAR_DECL;
                 new_stmt.v.var_decl.name = OSF_Malloc(sizeof(expr_t));
 
@@ -1335,6 +1347,7 @@ void SF_FrameIT_fromAST(mod_t *mod)
             else if (!strcmp(op, "["))
             {
                 stmt_t new_stmt;
+                new_stmt.line = curr.line;
                 new_stmt.type = STATEMENT_TYPE_EXPR;
                 new_stmt.v.expr.expr = OSF_Malloc(sizeof(expr_t));
 
@@ -1465,6 +1478,7 @@ void SF_FrameIT_fromAST(mod_t *mod)
             if (!curr.v.Identifier.is_token)
             {
                 stmt_t new_stmt;
+                new_stmt.line = curr.line;
                 new_stmt.type = STATEMENT_TYPE_VAR_REF;
                 new_stmt.v.var_ref.name = (char *)OSF_strdup(curr.v.Identifier.val);
 
@@ -1474,6 +1488,7 @@ void SF_FrameIT_fromAST(mod_t *mod)
             {
                 const char *tok = curr.v.Identifier.val;
                 stmt_t new_stmt;
+                new_stmt.line = curr.line;
 
                 if (!strcmp(tok, "if"))
                 {

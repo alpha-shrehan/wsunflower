@@ -3,9 +3,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <Parser/str.h>
 
 // Object
 #include <Object/osf_mem.h>
+#include <Object/osf_except.h>
+#include <Object/osf_cmd.h>
 
 // Parser
 #include <Parser/psf_gen_ast.h>

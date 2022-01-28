@@ -4,7 +4,6 @@
 #define ARRAY(X) (*PSG_GetArray_Ptr((X)))
 #define DICT(X) (*PSG_GetDict_Ptr((X)))
 
-#include <assert.h>
 #include <limits.h>
 #include <stdarg.h>
 #include <Object/osf_mem.h>
@@ -83,6 +82,7 @@ struct _expr
 {
     enum ExprTypeEnum type;
     struct _expr *next; // Backup for expressions that represent a symbol and need to have a value (example default function arguments)
+    int line;
 
     union
     {
@@ -297,6 +297,7 @@ typedef struct __mod_child_varhold_s var_t;
 struct _stmt
 {
     enum StatementTypeEnum type;
+    int line;
 
     union
     {

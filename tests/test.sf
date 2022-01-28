@@ -1,12 +1,4 @@
-fun smd(func)
-    fun inner(a, b)
-        if b == 0
-            return 'Cannot divide by 0'
-        return func(a, b)
-    return inner
-
-@smd
-fun div(a, b)
-    return a / b
-
-write(div(3, 2))
+a = [1, 2, 3, 4, 5]
+c = 10
+c = c
+a[c]

@@ -18,12 +18,15 @@ add_library(
     "./InstructionParser/expr_t.c"
     "./InstructionParser/ipsf_init.c"
     "./Object/osf_mem.c"
+    "./Object/osf_except.c"
+    "./Object/osf_cmd.c"
     "./Parser/array_t.c"
     "./Parser/dict_t.c"
     "./Parser/psf_byte_t.c"
     "./Parser/psf_gen_ast.c"
     "./Parser/psf_gen_ast_preprocessor.c"
     "./Parser/psf_gen_inst_ast.c"
+    "./Parser/str.c"
     "./sunflower.c"
 )
 

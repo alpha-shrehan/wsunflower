@@ -8,16 +8,21 @@ int main(int argc, char const *argv[])
         return printf("Usage: test_exe <file_name>\n");
 
     SF_InitEnv();
+    OSF_cmd_set_flag(OSF_cmd_flag_new(CMD_FLAG_DETAILED_ERRORS, NULL, 0));
 
     psf_byte_array_t *ast;
-    ast = PSF_AST_fromString(read_file(argv[1]));
+    char *fd = (char *)read_file(argv[1]);
+    OSF_SetFileData(fd);
+    OSF_SetFileName((char *)argv[1]);
+
+    ast = PSF_AST_fromString(fd);
     PSF_AST_Preprocess_fromByteArray(ast);
     // PSF_AST_print(ast);
 
     mod_t *mod = SF_CreateModule(MODULE_TYPE_FILE, ast);
     SF_FrameIT_fromAST(mod);
     // mod->path_prefix = _IPSF_GetDir_FromFilePath("tests/test.sf");
-    
+
     SFAdd_Protos_for_built_in_types();
     SFBuiltIn_AddDefaultFunctions(mod);
 
@@ -57,7 +62,7 @@ int main(int argc, char const *argv[])
         else if (mod->v.file_s.body[i].type == STATEMENT_TYPE_IF)
         {
             printf("\t");
-            
+
             for (size_t j = 0; j < mod->v.file_s.body[i].v.if_stmt.body_size; j++)
             {
                 PSG_PrintStatementType(mod->v.file_s.body[i].v.if_stmt.body[j].type);
@@ -69,7 +74,23 @@ int main(int argc, char const *argv[])
     int err;
     OSF_Free(IPSF_ExecIT_fromMod(mod, &err));
 
-    assert(err == IPSF_OK);
+    if (err != IPSF_OK)
+    {
+        switch (err)
+        {
+        case IPSF_NOT_OK_CHECK_EXPR_LOG:
+        {
+            except_t *expr_log = OSF_GetExceptionLog();
+            OSF_RaiseExceptionMessage(expr_log);
+        }
+        break;
+
+        default:
+            break;
+        }
+
+        exit(EXIT_FAILURE);
+    }
 #endif
 
     // printf("%d\n", *(int *) SF_CCast_Entity(IPSF_GetVar_fromMod(mod, "abc", NULL)->val));

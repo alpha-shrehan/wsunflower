@@ -3,8 +3,12 @@
 #include <Parser/psf_gen_ast.h>
 #include <Parser/psf_gen_inst_ast.h>
 
+#include <Object/osf_except.h>
+
 #define IPSF_OK -1
+#define IPSF_NOT_OK_CHECK_EXPR_LOG -2
 #define IPSF_ERR_VAR_NOT_FOUND 100
+#define IPSF_ERR_EXCEPTION 101
 
 enum IPSF_ErrorTypes
 {

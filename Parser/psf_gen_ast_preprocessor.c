@@ -28,19 +28,23 @@ const char *PSF_ValidTokens[] = {
 
 const char *PSF_ValidDataTypes[] = {
     "None",
-    NULL
-};
+    NULL};
 
 const char *PSF_ValidBooleans[] = {
     "True",
     "False",
-    NULL
-};
+    NULL};
 
 void PSF_AST_Preprocess_fromByteArray(psf_byte_array_t *_AST)
 {
+    int lincr = 1;
     for (size_t i = 0; i < _AST->size; i++)
     {
+        _AST->nodes[i].line = lincr;
+
+        if (_AST->nodes[i].nval_type == AST_NVAL_TYPE_NEWLINE)
+            lincr++;
+
         if (_AST->nodes[i].nval_type == AST_NVAL_TYPE_IDENTIFIER)
         {
             int j = 0;
@@ -57,12 +61,12 @@ void PSF_AST_Preprocess_fromByteArray(psf_byte_array_t *_AST)
                     OSF_Free(ccpy);
                     _AST->nodes[i].nval_type = AST_NVAL_TYPE_DATA_TYPE;
                 }
-            
+
             j = 0;
             while (PSF_ValidBooleans[j] != NULL)
                 if (!strcmp(_AST->nodes[i].v.Identifier.val, PSF_ValidBooleans[j++]))
                 {
-                    _AST->nodes[i].v.Bool.val = !strcmp(_AST->nodes[i].v.Identifier.val, "True") ? 1: 0;
+                    _AST->nodes[i].v.Bool.val = !strcmp(_AST->nodes[i].v.Identifier.val, "True") ? 1 : 0;
                     _AST->nodes[i].nval_type = AST_NVAL_TYPE_BOOL;
                 }
         }
