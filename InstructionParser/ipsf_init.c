@@ -115,9 +115,8 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                 BODY(body_mod)->body_size = curr.v.if_stmt.body_size;
                 OSF_Free(IPSF_ExecIT_fromMod(body_mod, err));
 
-                if (err != NULL)
-                    if (*err != IPSF_OK)
-                        return NULL;
+                if (OSF_GetExceptionState())
+                    goto __label_abrupt_end_IPSF_ExecIT_fromMod;
 
                 if (body_mod->returns != NULL)
                 {
@@ -155,9 +154,8 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                         BODY(body_mod)->body_size = c.body_size;
                         OSF_Free(IPSF_ExecIT_fromMod(body_mod, err));
 
-                        if (err != NULL)
-                            if (*err != IPSF_OK)
-                                return NULL;
+                        if (OSF_GetExceptionState())
+                            goto __label_abrupt_end_IPSF_ExecIT_fromMod;
 
                         if (body_mod->returns != NULL)
                         {
@@ -189,9 +187,8 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                         BODY(body_mod)->body_size = curr.v.if_stmt.else_stmt->body_size;
                         OSF_Free(IPSF_ExecIT_fromMod(body_mod, err));
 
-                        if (err != NULL)
-                            if (*err != IPSF_OK)
-                                return NULL;
+                        if (OSF_GetExceptionState())
+                            goto __label_abrupt_end_IPSF_ExecIT_fromMod;
 
                         if (body_mod->returns != NULL)
                         {
@@ -392,9 +389,8 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
 
                     OSF_Free(IPSF_ExecIT_fromMod(f_mod, err));
 
-                    if (err != NULL)
-                        if (*err != IPSF_OK)
-                            return NULL;
+                    if (OSF_GetExceptionState())
+                        goto __label_abrupt_end_IPSF_ExecIT_fromMod;
 
                     if (f_mod->returns != NULL)
                     {
@@ -535,9 +531,8 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
 
                     OSF_Free(IPSF_ExecIT_fromMod(f_mod, err));
 
-                    if (err != NULL)
-                        if (*err != IPSF_OK)
-                            return NULL;
+                    if (OSF_GetExceptionState())
+                        goto __label_abrupt_end_IPSF_ExecIT_fromMod;
 
                     if (f_mod->returns != NULL)
                     {
@@ -615,9 +610,8 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
 
                     OSF_Free(IPSF_ExecIT_fromMod(f_mod, err));
 
-                    if (err != NULL)
-                        if (*err != IPSF_OK)
-                            return NULL;
+                    if (OSF_GetExceptionState())
+                        goto __label_abrupt_end_IPSF_ExecIT_fromMod;
 
                     if (f_mod->returns != NULL)
                     {
@@ -670,6 +664,9 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                 BODY(body_mod)->body_size = curr.v.repeat_stmt.body_size;
 
                 OSF_Free(IPSF_ExecIT_fromMod(body_mod, NULL));
+
+                if (OSF_GetExceptionState())
+                    goto __label_abrupt_end_IPSF_ExecIT_fromMod;
 
                 if (body_mod->returns != NULL)
                 {
@@ -758,6 +755,9 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                 BODY(_cdef.mod)->body_size = curr.v.class_decl.body_size;
 
                 OSF_Free(IPSF_ExecIT_fromMod(_cdef.mod, err));
+
+                if (OSF_GetExceptionState())
+                    goto __label_abrupt_end_IPSF_ExecIT_fromMod;
 
                 if (err != NULL)
                     if (*err != IPSF_OK)
@@ -1082,7 +1082,12 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
                 expr_t *cpy_reds = OSF_Malloc(ARRAY(expr->v.constant.Array.index).len * sizeof(expr_t));
 
                 for (size_t j = 0; j < ARRAY(expr->v.constant.Array.index).len; j++)
+                {
                     cpy_reds[j] = IPSF_ReduceExpr_toConstant(mod, cpy_vals[j]);
+
+                    if (OSF_GetExceptionState())
+                        goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
+                }
 
                 ex_cpy.v.constant.Array.index = PSG_AddArray(Sf_Array_New_fromExpr(cpy_reds, ARRAY(expr->v.constant.Array.index).len));
 
@@ -1098,13 +1103,23 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
                 expr_t *cpy_reds_k = OSF_Malloc(DICT(expr->v.constant.Dict.index).len * sizeof(expr_t));
 
                 for (size_t j = 0; j < DICT(expr->v.constant.Dict.index).len; j++)
+                {
                     cpy_reds_k[j] = IPSF_ReduceExpr_toConstant(mod, cpy_keys[j]);
+
+                    if (OSF_GetExceptionState())
+                        goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
+                }
 
                 expr_t *cpy_vals = DICT(expr->v.constant.Dict.index).vals;
                 expr_t *cpy_reds = OSF_Malloc(DICT(expr->v.constant.Dict.index).len * sizeof(expr_t));
 
                 for (size_t j = 0; j < DICT(expr->v.constant.Dict.index).len; j++)
+                {
                     cpy_reds[j] = IPSF_ReduceExpr_toConstant(mod, cpy_vals[j]);
+
+                    if (OSF_GetExceptionState())
+                        goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
+                }
 
                 ex_cpy.v.constant.Dict.index = PSG_AddDict(Sf_Dict_New_fromExpr(cpy_reds_k, cpy_reds, DICT(expr->v.constant.Dict.index).len));
 
@@ -1131,11 +1146,17 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
             for (size_t j = 0; j < expr->v.function_call.arg_size; j++)
             {
                 expr_t temp = IPSF_ReduceExpr_toConstant(mod, expr->v.function_call.args[j]);
+
+                if (OSF_GetExceptionState())
+                    goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
             }
             break;
         }
 
         expr_t _red_nme = IPSF_ReduceExpr_toConstant(mod, *(expr->v.function_call.name));
+
+        if (OSF_GetExceptionState())
+            goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
 
         switch (_red_nme.type)
         {
@@ -1197,10 +1218,17 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
                 }
                 else
                     f_args[j + fa_beg] = IPSF_ReduceExpr_toConstant(mod, expr->v.function_call.args[j]);
+
+                if (OSF_GetExceptionState())
+                    goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
             }
             fa_beg += expr->v.function_call.arg_size;
 
             expr_t *f_res = _IPSF_CallFunction(fun_s, f_args, fa_beg, m_pass);
+
+            if (OSF_GetExceptionState())
+                goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
+
             *RES = *f_res;
             OSF_Free(f_res);
 
@@ -1258,11 +1286,17 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
                 }
                 else
                     cons_args[j + 1] = IPSF_ReduceExpr_toConstant(mod, expr->v.function_call.args[j]);
+
+                if (OSF_GetExceptionState())
+                    goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
             }
 
             mod_t *mpass = inst_c.mod->parent;
             fun_t _c_main = (*PSG_GetFunctions())[var__main->val.v.function_s.index];
             expr_t *main_res = _IPSF_CallFunction(_c_main, cons_args, expr->v.function_call.arg_size + 1, mpass);
+
+            if (OSF_GetExceptionState())
+                goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
 
             *RES = *cons_args; // self
 
@@ -1287,6 +1321,9 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
             {
                 assert(expr->v.function_call.args[j].type != EXPR_TYPE_INLINE_ASSIGNMENT && SF_FMT("Error: Inline assignment is not allowed in module constructors."));
                 expr_t rd = IPSF_ReduceExpr_toConstant(mod, expr->v.function_call.args[j]);
+
+                if (OSF_GetExceptionState())
+                    goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
                 if (!_IPSF_IsDataType_Void(rd))
                     f_args[f_arg_size++] = rd;
             }
@@ -1295,6 +1332,9 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
 
             fun_t main_func = (*PSG_GetFunctions())[get_main->val.v.function_s.index];
             expr_t *mf_res = _IPSF_CallFunction(main_func, f_args, f_arg_size, m_ref);
+
+            if (OSF_GetExceptionState())
+                goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
 
             mf_res->next = OSF_Malloc(sizeof(expr_t));
             *(mf_res->next) = _red_nme;
@@ -1356,6 +1396,9 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
             }
 
             (*lhs_val).val = IPSF_ReduceExpr_toConstant(mod, *rhs);
+
+            if (OSF_GetExceptionState())
+                goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
             *RES = (expr_t){
                 .type = EXPR_TYPE_CONSTANT,
                 .v = {
@@ -1369,6 +1412,9 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
         {
             // TODO: here
             *RES = IPSF_ReduceExpr_toConstant(mod, *rhs);
+
+            if (OSF_GetExceptionState())
+                goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
         }
     }
     break;
@@ -1377,6 +1423,9 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
         int op_ty = expr->v.logical_arith_op_expr.op;
         expr_t _lhs = IPSF_ReduceExpr_toConstant(mod, *(expr->v.logical_arith_op_expr.lhs)),
                _rhs = IPSF_ReduceExpr_toConstant(mod, *(expr->v.logical_arith_op_expr.rhs));
+
+        if (OSF_GetExceptionState())
+            goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
 
         *RES = _IPSF_ExecLogicalArithmetic(_lhs, op_ty, _rhs);
     }
@@ -1395,6 +1444,9 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
         if (has_step)
         {
             expr_t _step_red = IPSF_ReduceExpr_toConstant(mod, *(expr->v.to_step_clause._step));
+
+            if (OSF_GetExceptionState())
+                goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
             assert(
                 (_step_red.type == EXPR_TYPE_CONSTANT &&
                  _step_red.v.constant.constant_type == CONSTANT_TYPE_INT) &&
@@ -1405,6 +1457,9 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
 
         expr_t lhs_red = IPSF_ReduceExpr_toConstant(mod, *(expr->v.to_step_clause.lhs)),
                rhs_red = IPSF_ReduceExpr_toConstant(mod, *(expr->v.to_step_clause.rhs));
+
+        if (OSF_GetExceptionState())
+            goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
 
         assert(
             ((
@@ -1438,6 +1493,9 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
     {
         expr_t _entity_red = IPSF_ReduceExpr_toConstant(mod, *(expr->v.index_op.entity)),
                _index_red = IPSF_ReduceExpr_toConstant(mod, *(expr->v.index_op.index));
+
+        if (OSF_GetExceptionState())
+            goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
 
         expr_t _fres;
         _fres.line = expr->line;
@@ -1486,6 +1544,10 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
 
             fun_t _f = (*PSG_GetFunctions())[get_operator_index->val.v.function_s.index];
             expr_t *_f_res = _IPSF_CallFunction(_f, (expr_t *)(expr_t[]){_entity_red, _index_red}, 2, cobj->mod->parent);
+
+            if (OSF_GetExceptionState())
+                goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
+
             _fres = *_f_res;
 
             OSF_Free(_f_res);
@@ -1507,6 +1569,8 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
         res.v.constant.Array.index = PSG_AddArray(Sf_Array_New());
 
         expr_t cond_red = IPSF_ReduceExpr_toConstant(mod, *(expr->v.inline_for.condition));
+        if (OSF_GetExceptionState())
+            goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
 
         mod_t *f_mod = SF_CreateModule(mod->type, NULL);
         f_mod->parent = mod;
@@ -1588,6 +1652,9 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
                     {
                         expr_t _vred = IPSF_ReduceExpr_toConstant(f_mod, expr_vars[k].val);
 
+                        if (OSF_GetExceptionState())
+                            goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
+
                         if (!_IPSF_IsDataType_Void(_vred))
                             _IPSF_AddVar_toModule(
                                 f_mod,
@@ -1638,6 +1705,9 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
                 fun_t _get_iter_repr = (*PSG_GetFunctions())[get_iter_repr->val.v.function_s.index];
 
                 expr_t *idx_v_dy = _IPSF_CallFunction(_get_iter_repr, (expr_t *)(expr_t[]){idx_val}, 1, c_get->mod->parent);
+
+                if (OSF_GetExceptionState())
+                    goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
                 idx_val = *idx_v_dy;
                 OSF_Free(idx_v_dy);
 
@@ -1708,6 +1778,9 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
                     {
                         expr_t _vred = IPSF_ReduceExpr_toConstant(f_mod, ((var_t *)expr->v.inline_for.vars)[k].val);
 
+                        if (OSF_GetExceptionState())
+                            goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
+
                         if (!_IPSF_IsDataType_Void(_vred))
                             _IPSF_AddVar_toModule(
                                 f_mod,
@@ -1719,6 +1792,9 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
                 }
 
                 expr_t _ex_res = IPSF_ReduceExpr_toConstant(f_mod, *(expr->v.inline_for.body));
+
+                if (OSF_GetExceptionState())
+                    goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
 
                 if (ARRAY(res.v.constant.Array.index).len)
                     ARRAY(res.v.constant.Array.index).vals = OSF_Realloc(
@@ -1734,6 +1810,9 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
 
                 OSF_Free(_itc_val);
                 _itc_val = _IPSF_CallFunction(_get_iter, (expr_t *)(expr_t[]){cond_red}, 1, _c_ref->mod->parent);
+
+                if (OSF_GetExceptionState())
+                    goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
             }
 
             OSF_Free(_itc_val);
@@ -1774,6 +1853,9 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
 
         expr_t cond_red = IPSF_ReduceExpr_toConstant(w_mod, *(expr->v.then_while.condition));
 
+        if (OSF_GetExceptionState())
+            goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
+
         while (_PSF_EntityIsTrue(cond_red))
         {
             expr_t _eres = IPSF_ReduceExpr_toConstant(w_mod, *(expr->v.then_while.body));
@@ -1792,6 +1874,9 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
             }
 
             cond_red = IPSF_ReduceExpr_toConstant(w_mod, *(expr->v.then_while.condition));
+
+            if (OSF_GetExceptionState())
+                goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
         }
 
         SF_Module_safeDelete(w_mod);
@@ -1803,6 +1888,8 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
     case EXPR_TYPE_INLINE_REPEAT:
     {
         expr_t cond = IPSF_ReduceExpr_toConstant(mod, *(expr->v.inline_repeat.cond));
+        if (OSF_GetExceptionState())
+            goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
         expr_t res;
 
         res.type = EXPR_TYPE_CONSTANT;
@@ -1820,6 +1907,9 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
         while (cond_iter--)
         {
             expr_t _res = IPSF_ReduceExpr_toConstant(mod, *(expr->v.inline_repeat.body));
+
+            if (OSF_GetExceptionState())
+                goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
 
             if (ARRAY(res.v.constant.Array.index).len)
                 ARRAY(res.v.constant.Array.index).vals = OSF_Realloc(ARRAY(res.v.constant.Array.index).vals, (ARRAY(res.v.constant.Array.index).len + 1) * sizeof(expr_t));
@@ -1840,6 +1930,9 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
     case EXPR_TYPE_MEMBER_ACCESS:
     {
         expr_t _red = IPSF_ReduceExpr_toConstant(mod, *(expr->v.member_access.parent));
+
+        if (OSF_GetExceptionState())
+            goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
         expr_t _res;
 
         switch (_red.type)
@@ -1942,6 +2035,9 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
         expr_t lhs = IPSF_ReduceExpr_toConstant(mod, *(expr->v.in_clause._lhs)),
                rhs = IPSF_ReduceExpr_toConstant(mod, *(expr->v.in_clause._rhs));
 
+        if (OSF_GetExceptionState())
+            goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
+
         *RES = _IPSF_Entity_IsIn_Entity(lhs, rhs, mod);
     }
     break;
@@ -1953,6 +2049,13 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
     }
 
 __label_abrupt_end_IPSF_ExecExprStatement_fromMod:
+    if (OSF_GetExceptionState())
+    {
+        if (err != NULL)
+            *err = IPSF_NOT_OK_CHECK_EXPR_LOG;
+
+        return NULL;
+    }
     return RES;
 }
 
@@ -2173,7 +2276,20 @@ expr_t IPSF_ReduceExpr_toConstant(mod_t *mod, expr_t expr)
     *temp_ex = expr;
     expr_t *ex_res = IPSF_ExecExprStatement_fromMod(mod, (stmt_t){.type = STATEMENT_TYPE_EXPR, .v.expr.expr = temp_ex, .line = expr.line}, NULL);
     OSF_Free(temp_ex);
-    expr_t fex_res = *ex_res;
+    expr_t fex_res;
+
+    if (!OSF_GetExceptionState())
+        fex_res = *ex_res;
+    else
+        fex_res = (expr_t) {
+            .type = EXPR_TYPE_CONSTANT,
+            .line = expr.line,
+            .v.constant = {
+                .constant_type = CONSTANT_TYPE_DICT,
+                .DType.type = DATA_TYPE_NONE
+            }
+        };
+    
     OSF_Free(ex_res);
     return fex_res;
 }
@@ -3109,6 +3225,9 @@ expr_t *_IPSF_CallFunction(fun_t fun_s, expr_t *args, int arg_size, mod_t *mod)
         else
             _collectivise_args[_collectivise_args_count++] = args[j];
     }
+
+    if (OSF_GetExceptionState())
+        return NULL;
 
     fun_mod->parent = fun_s.parent;
     _cargs_without_voids = _PSF_RemoveVoidsFromExprArray(_collectivise_args, _collectivise_args_count, &_cargs_without_voids_size);

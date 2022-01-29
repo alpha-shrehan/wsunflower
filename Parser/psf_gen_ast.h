@@ -4,9 +4,14 @@
 #include <stdlib.h>
 #include <assert.h>
 
-#ifdef assert
-#undef assert
-#define assert(X)
+#define SFC_DEBUG       1
+#define SFC_RELEASE     2
+
+#if SFCONFIG == SFC_RELEASE
+#   ifdef assert
+#       undef assert
+#       define assert(X)
+#   endif
 #endif
 
 #include <Object/osf_mem.h>
@@ -97,7 +102,6 @@ typedef struct
     int size;
 } psf_byte_array_t;
 
-
 typedef struct
 {
     int x1;
@@ -109,7 +113,7 @@ void PSF_AST_ByteArray_AddNode(psf_byte_array_t *, psf_byte_t);
 /**
  * @brief Generate AST from string
  * @param src Source string
- * @return psf_byte_array_t* 
+ * @return psf_byte_array_t*
  */
 psf_byte_array_t *PSF_AST_fromString(const char *);
 
@@ -131,26 +135,26 @@ void PSF_AST_print_node(psf_byte_t);
  * @param op2 Second operand
  * @param op3 Third operand
  * @note Max length of operator = 3
- * @return char* 
+ * @return char*
  */
 char *_PSF_Construct_Operator_fromString(char, char, char);
 
 /**
  * @brief Main function to generate AST from string (normal)
  * @param src Source of string
- * @return psf_byte_array_t* 
+ * @return psf_byte_array_t*
  */
 psf_byte_array_t *_PSF_New_AST_FromString(const char *);
 
 /**
  * @brief New byte array
- * @return psf_byte_array_t* 
+ * @return psf_byte_array_t*
  */
 psf_byte_array_t *_PSF_newByteArray(void);
 
 /**
  * @brief Remove the first and last char (') from SF string
  * @param _str String
- * @return char* 
+ * @return char*
  */
 char *_PSF_TrimSFStrImp(char *);

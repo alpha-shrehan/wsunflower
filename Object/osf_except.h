@@ -103,7 +103,7 @@ struct _except_s
 
         struct
         {
-            int algn;
+            char *additional_msg;
         } ce10;
 
         struct
@@ -241,3 +241,4 @@ backtrace_t **OSF_GetBacklog(void);
 int *OSF_GetBacklogSize(void);
 void OSF_ClearBacklog(void);
 backtrace_t OSF_CreateBackLog(int, int);
+void OSF_RaiseException_SyntaxError(int, char *);

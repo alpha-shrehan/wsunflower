@@ -16,8 +16,25 @@ int main(int argc, char const *argv[])
     OSF_SetFileName((char *)argv[1]);
 
     ast = PSF_AST_fromString(fd);
+
+    if (OSF_GetExceptionState())
+    {
+        except_t *expr_log = OSF_GetExceptionLog();
+        OSF_RaiseExceptionMessage(expr_log);
+
+        exit(EXIT_FAILURE);
+    }
+
     PSF_AST_Preprocess_fromByteArray(ast);
     // PSF_AST_print(ast);
+
+    if (OSF_GetExceptionState())
+    {
+        except_t *expr_log = OSF_GetExceptionLog();
+        OSF_RaiseExceptionMessage(expr_log);
+
+        exit(EXIT_FAILURE);
+    }
 
     mod_t *mod = SF_CreateModule(MODULE_TYPE_FILE, ast);
     SF_FrameIT_fromAST(mod);

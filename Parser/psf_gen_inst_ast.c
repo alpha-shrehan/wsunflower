@@ -2,6 +2,7 @@
 #include "array_t.h"
 #include "dict_t.h"
 #include "psf_byte_t.h"
+#include <Object/osf_except.h>
 
 static fun_t *PSG_Functions;
 static int PSG_Functions_Size;
@@ -129,6 +130,10 @@ expr_t SF_FrameExpr_fromByte(psf_byte_array_t *arr)
                 {
                     // Inline `for'
                     expr_t _res = _PSF_ConstructInlineForExpr(arr, i);
+
+                    if (OSF_GetExceptionState())
+                        goto __label_end_abrupt_SF_FrameExpr_fromByte;
+
                     ret = _res;
                     doBreak = 1;
                     ret_now = 1;
@@ -174,9 +179,15 @@ expr_t SF_FrameExpr_fromByte(psf_byte_array_t *arr)
             break;
         }
 
+        if (OSF_GetExceptionState())
+            goto __label_end_abrupt_SF_FrameExpr_fromByte;
+
         if (doBreak)
             break;
     }
+
+    if (OSF_GetExceptionState())
+        goto __label_end_abrupt_SF_FrameExpr_fromByte;
 
     if (ret_now)
         return ret;
@@ -922,6 +933,9 @@ expr_t SF_FrameExpr_fromByte(psf_byte_array_t *arr)
             break;
         }
 
+        if (OSF_GetExceptionState())
+            goto __label_end_abrupt_SF_FrameExpr_fromByte;
+
         if (doBreak)
             break;
     }
@@ -929,6 +943,7 @@ expr_t SF_FrameExpr_fromByte(psf_byte_array_t *arr)
     if (ret_now)
         return ret;
 
+__label_end_abrupt_SF_FrameExpr_fromByte:
     return ret;
 }
 
@@ -1406,14 +1421,14 @@ void SF_FrameIT_fromAST(mod_t *mod)
                         _st.v.expr.expr->v.index_op.entity->v.variable.name = OSF_strdup(BODY(mod)->body[BODY(mod)->body_size - 1].v.var_ref.name);
                     }
                     else
-                        assert(0 && SF_FMT("Error: Syntax Error."));
+                        OSF_RaiseException_SyntaxError(curr.line, "Index operator expects an identifier.");
 
                     _st.v.expr.expr->v.index_op.index = OSF_Malloc(sizeof(expr_t));
                     *(_st.v.expr.expr->v.index_op.index) = *(new_stmt.v.expr.expr);
 
-                    assert((_st.v.expr.expr->v.index_op.index->type == EXPR_TYPE_CONSTANT &&
-                            _st.v.expr.expr->v.index_op.index->v.constant.constant_type == CONSTANT_TYPE_ARRAY) &&
-                           SF_FMT("Error: Syntax Error"));
+                    if ((_st.v.expr.expr->v.index_op.index->type != EXPR_TYPE_CONSTANT ||
+                         _st.v.expr.expr->v.index_op.index->v.constant.constant_type != CONSTANT_TYPE_ARRAY))
+                        OSF_RaiseException_SyntaxError(curr.line, NULL);
 
                     if (ARRAY(_st.v.expr.expr->v.index_op.index->v.constant.Array.index).len)
                         *(_st.v.expr.expr->v.index_op.index) = ARRAY(_st.v.expr.expr->v.index_op.index->v.constant.Array.index).vals[0];
@@ -1521,7 +1536,11 @@ void SF_FrameIT_fromAST(mod_t *mod)
                         PSF_AST_ByteArray_AddNode(cond_arr, c);
                     }
 
-                    assert(nl_st != -1 && SF_FMT("Error: Syntax Error"));
+                    if (nl_st == -1)
+                    {
+                        OSF_RaiseException_SyntaxError(curr.line, "Unexpected End of File (EOF).");
+                        goto __label_end_abrupt_SF_FrameIT_fromAST;
+                    }
 
                     new_stmt.v.if_stmt.condition = (expr_t *)OSF_Malloc(sizeof(expr_t));
                     *(new_stmt.v.if_stmt.condition) = SF_FrameExpr_fromByte(cond_arr);
@@ -1581,7 +1600,11 @@ void SF_FrameIT_fromAST(mod_t *mod)
                             PSF_AST_ByteArray_AddNode(cond_arr, c);
                         }
 
-                        assert(nl_st != -1 && SF_FMT("Error: Syntax Error"));
+                        if (nl_st == -1)
+                        {
+                            OSF_RaiseException_SyntaxError(curr.line, "Unexpected End of File (EOF).");
+                            goto __label_end_abrupt_SF_FrameIT_fromAST;
+                        }
 
                         if (BODY(mod)->body[BODY(mod)->body_size - 1].v.if_stmt.elif_stmts_count)
                             BODY(mod)->body[BODY(mod)->body_size - 1].v.if_stmt.elif_stmts = (struct _conditional_struct *)OSF_Realloc(
@@ -1667,7 +1690,11 @@ void SF_FrameIT_fromAST(mod_t *mod)
                         PSF_AST_ByteArray_AddNode(cond_arr, c);
                     }
 
-                    assert(nl_st != -1 && SF_FMT("Error: Syntax Error"));
+                    if (nl_st == -1)
+                    {
+                        OSF_RaiseException_SyntaxError(curr.line, "Unexpected End of File (EOF).");
+                        goto __label_end_abrupt_SF_FrameIT_fromAST;
+                    }
 
                     new_stmt.v.while_stmt.condition = (expr_t *)OSF_Malloc(sizeof(expr_t));
                     *(new_stmt.v.while_stmt.condition) = SF_FrameExpr_fromByte(cond_arr);
@@ -1693,6 +1720,9 @@ void SF_FrameIT_fromAST(mod_t *mod)
                 {
                     int body_sz = 0;
                     new_stmt = _PSF_ConstructForLoopStmt(mod, i, &body_sz);
+
+                    if (OSF_GetExceptionState())
+                        goto __label_end_abrupt_SF_FrameIT_fromAST;
                     PSG_AddStmt_toMod(mod, new_stmt);
 
                     int gb = 0;
@@ -1854,6 +1884,10 @@ void SF_FrameIT_fromAST(mod_t *mod)
                          !strcmp(tok, "from"))
                 {
                     new_stmt = _PSF_ConstructImportLine(mod, i);
+
+                    if (OSF_GetExceptionState())
+                        goto __label_end_abrupt_SF_FrameIT_fromAST;
+
                     PSG_AddStmt_toMod(mod, new_stmt);
 
                     int gb = 0;
@@ -1923,7 +1957,12 @@ void SF_FrameIT_fromAST(mod_t *mod)
                         i++;
                     }
 
-                    assert(_cond->size && SF_FMT("Error: Syntax Error."));
+                    if (!_cond->size)
+                    {
+                        OSF_RaiseException_SyntaxError(curr.line, "No condition given for assert statement.");
+                        goto __label_end_abrupt_SF_FrameIT_fromAST;
+                    }
+
                     new_stmt.v.assert_stmt.condition = OSF_Malloc(sizeof(expr_t));
                     *(new_stmt.v.assert_stmt.condition) = SF_FrameExpr_fromByte(_cond);
 
@@ -1961,7 +2000,12 @@ void SF_FrameIT_fromAST(mod_t *mod)
                             i++;
                         }
 
-                        assert(_msg->size && SF_FMT("Error: Syntax Error."));
+                        if (!_msg->size)
+                        {
+                            OSF_RaiseException_SyntaxError(curr.line, "No message provided for assertion.");
+                            goto __label_end_abrupt_SF_FrameIT_fromAST;
+                        }
+
                         *(new_stmt.v.assert_stmt.message) = SF_FrameExpr_fromByte(_msg);
 
                         OSF_Free(_msg->nodes);
@@ -1978,6 +2022,8 @@ void SF_FrameIT_fromAST(mod_t *mod)
             break;
         }
     }
+
+__label_end_abrupt_SF_FrameIT_fromAST:;
 }
 
 void PSG_PrintStatementType(enum StatementTypeEnum _en)
@@ -2266,11 +2312,14 @@ expr_t *_PSF_RemoveVoidsFromExprArray(expr_t *arr, int size, int *sz_ptr)
 
 stmt_t _PSF_ConstructForLoopStmt(mod_t *mod, int idx, int *body_sz_ptr)
 {
-    assert(
-        (mod->ast->nodes[idx].nval_type == AST_NVAL_TYPE_IDENTIFIER &&
-         mod->ast->nodes[idx].v.Identifier.is_token &&
-         !strcmp(mod->ast->nodes[idx].v.Identifier.val, "for")) &&
-        SF_FMT("Error: Syntax Error."));
+    if (
+        !(mod->ast->nodes[idx].nval_type == AST_NVAL_TYPE_IDENTIFIER &&
+          mod->ast->nodes[idx].v.Identifier.is_token &&
+          !strcmp(mod->ast->nodes[idx].v.Identifier.val, "for")))
+    {
+        OSF_RaiseException_SyntaxError(mod->ast->nodes[idx].line, NULL);
+        return (stmt_t){};
+    }
 
     var_t *vars = OSF_Malloc(sizeof(var_t));
     int vars_size = 0, gb = 0;
@@ -2395,11 +2444,13 @@ stmt_t _PSF_ConstructForLoopStmt(mod_t *mod, int idx, int *body_sz_ptr)
 
 expr_t _PSF_ConstructInlineForExpr(psf_byte_array_t *arr, int idx)
 {
-    assert(
-        (arr->nodes[idx].nval_type == AST_NVAL_TYPE_IDENTIFIER &&
-         arr->nodes[idx].v.Identifier.is_token &&
-         !strcmp(arr->nodes[idx].v.Identifier.val, "for")) &&
-        SF_FMT("Error: Syntax Error."));
+    if (!(arr->nodes[idx].nval_type == AST_NVAL_TYPE_IDENTIFIER &&
+          arr->nodes[idx].v.Identifier.is_token &&
+          !strcmp(arr->nodes[idx].v.Identifier.val, "for")))
+    {
+        OSF_RaiseException_SyntaxError(arr->nodes[idx].line, NULL);
+        return (expr_t){};
+    }
 
     expr_t res;
     res.type = EXPR_TYPE_INLINE_FOR;
@@ -3295,6 +3346,21 @@ stmt_t _PSF_ConstructImportLine(mod_t *mod, int idx)
             arr->nodes[idx].v.Identifier.is_token &&
             !strcmp(arr->nodes[idx].v.Identifier.val, "as"))
         {
+            if (idx + 1 == arr->size)
+            {
+                OSF_RaiseException_SyntaxError(arr->nodes[idx].line, "Unexpected End of File (EOF).");
+                return (stmt_t){};
+            }
+
+            if (arr->nodes[idx + 1].nval_type != AST_NVAL_TYPE_IDENTIFIER)
+            {
+                if (arr->nodes[idx + 1].nval_type == AST_NVAL_TYPE_NEWLINE)
+                    OSF_RaiseException_SyntaxError(arr->nodes[idx].line, "Unexpected End of Line (EOL).");
+                else
+                    OSF_RaiseException_SyntaxError(arr->nodes[idx].line, NULL);
+                return (stmt_t){};
+            }
+            
             ret.v.import_s.alias = OSF_Malloc((strlen(arr->nodes[idx + 1].v.Identifier.val) + 1) * sizeof(char));
             strcpy(ret.v.import_s.alias, arr->nodes[idx + 1].v.Identifier.val);
         }
@@ -3313,8 +3379,11 @@ stmt_t _PSF_ConstructImportLine(mod_t *mod, int idx)
             }
             else if (name_arr->nodes[i].nval_type == AST_NVAL_TYPE_OPERATOR)
             {
-                assert(!strcmp(name_arr->nodes[i].v.Operator.val, ".") &&
-                       SF_FMT("Error: Syntax Error"));
+                if (strcmp(name_arr->nodes[i].v.Operator.val, "."))
+                {
+                    OSF_RaiseException_SyntaxError(name_arr->nodes[i].line, "Invalid operator.");
+                    return (stmt_t){};
+                }
 
                 name_path = OSF_Realloc(
                     name_path,
@@ -3347,7 +3416,11 @@ stmt_t _PSF_ConstructImportLine(mod_t *mod, int idx)
 
         if (name_arr->size == 1 && ret.v.import_s.alias == NULL)
         {
-            assert(name_arr->nodes[0].nval_type == AST_NVAL_TYPE_IDENTIFIER && SF_FMT("Error: Syntax Error"));
+            if (name_arr->nodes[0].nval_type != AST_NVAL_TYPE_IDENTIFIER)
+            {
+                OSF_RaiseException_SyntaxError(name_arr->nodes[0].line, "Invalid token.");
+                return (stmt_t){};
+            }
             ret.v.import_s.alias = OSF_strdup(name_arr->nodes[0].v.Identifier.val);
         }
 
@@ -3463,7 +3536,13 @@ stmt_t _PSF_ConstructImportLine(mod_t *mod, int idx)
             strcpy(ret.v.import_s.alias, arr->nodes[idx + 1].v.Identifier.val);
 
             if (idx + 2 < arr->size)
-                assert(arr->nodes[idx + 2].nval_type == AST_NVAL_TYPE_NEWLINE && SF_FMT("Error: Syntax Error."));
+            {
+                if (arr->nodes[idx + 2].nval_type != AST_NVAL_TYPE_NEWLINE)
+                {
+                    OSF_RaiseException_SyntaxError(arr->nodes[idx + 1].line, "Unexpected End of File (EOF).");
+                    return (stmt_t){};
+                }
+            }
         }
 
         for (size_t i = 0; i < name_arr->size; i++)
@@ -3480,8 +3559,11 @@ stmt_t _PSF_ConstructImportLine(mod_t *mod, int idx)
             }
             else if (name_arr->nodes[i].nval_type == AST_NVAL_TYPE_OPERATOR)
             {
-                assert(!strcmp(name_arr->nodes[i].v.Operator.val, ".") &&
-                       SF_FMT("Error: Syntax Error"));
+                if (strcmp(name_arr->nodes[i].v.Operator.val, "."))
+                {
+                    OSF_RaiseException_SyntaxError(name_arr->nodes[i].line, "Invalid operator.");
+                    return (stmt_t){};
+                }
 
                 name_path = OSF_Realloc(
                     name_path,
@@ -3512,7 +3594,11 @@ stmt_t _PSF_ConstructImportLine(mod_t *mod, int idx)
 
         if (name_arr->size == 1 && ret.v.import_s.alias == NULL)
         {
-            assert(name_arr->nodes[0].nval_type == AST_NVAL_TYPE_IDENTIFIER && SF_FMT("Error: Syntax Error"));
+            if (name_arr->nodes[0].nval_type != AST_NVAL_TYPE_IDENTIFIER)
+            {
+                OSF_RaiseException_SyntaxError(name_arr->nodes[0].line, "Invalid token.");
+                return (stmt_t){};
+            }
             ret.v.import_s.alias = OSF_strdup(name_arr->nodes[0].v.Identifier.val);
         }
 

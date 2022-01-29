@@ -106,7 +106,7 @@ void OSF_RaiseExceptionMessage(except_t *e)
                     int x = strcmp(e->v.ce1.vname, e->v.ce1.m_ref->var_holds[i].name);
                     if (x < closest_score &&
                         strlen(e->v.ce1.vname) ==
-                        strlen(e->v.ce1.m_ref->var_holds[i].name))
+                            strlen(e->v.ce1.m_ref->var_holds[i].name))
                     {
                         closest_score = x;
                         cv = e->v.ce1.m_ref->var_holds[i].name;
@@ -119,32 +119,49 @@ void OSF_RaiseExceptionMessage(except_t *e)
         }
     }
     break;
+    case EXCEPT_SYNTAX_ERROR:
+    {
+        if (flg_extra_info != NULL)
+        {
+            if (e->v.ce10.additional_msg != NULL)
+            {
+                printf("\n");
+                printf("Additional meta-data returned by the interpreter:\n");
+                printf("[%s]\n", e->v.ce10.additional_msg);
+            }
+        }
+    }
+    break;
 
     default:
         break;
     }
 
     printf("\n");
-    if (flg_extra_info != NULL)
-    {
-        printf("-------------\n");
-        printf("| Backtrace |\n");
-        printf("-------------\n");
 
-        for (int i = bl - 1; i >= 0; i--)
+    if (bl)
+        if (flg_extra_info != NULL)
         {
-            // TODO: here
-            printf("%d | %s\n", bb[i].line - 1, spl_fd[bb[i].line - 1]);
+            printf("-------------\n");
+            printf("| Backtrace |\n");
+            printf("-------------\n");
+
+            for (int i = bl - 1; i >= 0; i--)
+            {
+                // TODO: here
+                printf("%d | %s\n", bb[i].line - 1, spl_fd[bb[i].line - 1]);
+            }
         }
-    }
-    else
-    {
-        /* Print last line */
-        int std_l = printf("%d | %s\n", bb[bl - 1].line - 1, spl_fd[bb[bl - 1].line - 1]);
-        for (size_t j = 0; j < std_l; j++)
-            printf("-");
-        printf("\n");
-    }
+        else
+        {
+            /* Print last line */
+            int std_l = printf("%d | %s\n", bb[bl - 1].line - 1, spl_fd[bb[bl - 1].line - 1]);
+            for (size_t j = 0; j < std_l; j++)
+                printf("-");
+            printf("\n");
+        }
+    else if (e->line - 1)
+        printf("%d | %s\n", e->line - 1, spl_fd[e->line - 1]);
 }
 
 void OSF_SetFileData(char *d)
@@ -224,4 +241,12 @@ backtrace_t OSF_CreateBackLog(int type, int line)
     b.line = line;
 
     return b;
+}
+
+void OSF_RaiseException_SyntaxError(int line, char *msg)
+{
+    OSF_SetException((except_t){
+        .type = EXCEPT_SYNTAX_ERROR,
+        .line = line,
+        .v.ce10.additional_msg = msg});
 }

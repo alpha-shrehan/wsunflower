@@ -10,8 +10,6 @@ include_directories(Include/gc)
 
 # add_compile_options(-O3)
 
-# FILE(GLOB_RECURSE SFCSOURCES *.c)
-
 add_library(
     sunflower 
     "./builtins/built_in.c"
@@ -35,6 +33,12 @@ if (WIN32)
 elseif (UNIX)
     target_link_libraries(sunflower ${CMAKE_CURRENT_SOURCE_DIR}/StaticLibs/libgc.a ${CMAKE_CURRENT_SOURCE_DIR}/StaticLibs/libcord.a pthread)
 endif (WIN32)
+
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+    add_definitions( -DSFCONFIG=1 )
+elseif (CMAKE_BUILD_TYPE STREQUAL "Release")
+    add_definitions( -DSFCONFIG=2 )
+endif()
 
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})
