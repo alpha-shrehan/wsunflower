@@ -78,8 +78,7 @@ void OSF_RaiseExceptionMessage(except_t *e)
 
         if (flg_extra_info != NULL)
         {
-            printf("\n");
-            printf("Additional meta-data returned by the interpreter:\n");
+            printf("\nAdditional meta-data returned by the interpreter:\n");
             printf("[Index requested   : %d]\n", e->v.ce0.idx);
             printf("[Range length      : %d]\n", e->v.ce0.targ.len);
             printf("[Exceeded limit by : %d]\n", e->v.ce0.idx - e->v.ce0.targ.len);
@@ -92,8 +91,7 @@ void OSF_RaiseExceptionMessage(except_t *e)
 
         if (flg_extra_info != NULL)
         {
-            printf("\n");
-            printf("Additional meta-data returned by the interpreter:\n");
+            printf("\nAdditional meta-data returned by the interpreter:\n");
             printf("[Variable referenced : '%s']\n", e->v.ce1.vname);
 
             if (e->v.ce1.m_ref != NULL)
@@ -121,13 +119,36 @@ void OSF_RaiseExceptionMessage(except_t *e)
     break;
     case EXCEPT_SYNTAX_ERROR:
     {
+        printf("       Syntax Error.\n");
+
         if (flg_extra_info != NULL)
         {
             if (e->v.ce10.additional_msg != NULL)
             {
-                printf("\n");
-                printf("Additional meta-data returned by the interpreter:\n");
-                printf("[%s]\n", e->v.ce10.additional_msg);
+                printf("\nAdditional meta-data returned by the interpreter:\n");
+                if (e->v.ce10.additional_msg != NULL)
+                    printf("[%s]\n", e->v.ce10.additional_msg);
+            }
+        }
+    }
+    break;
+    case EXCEPT_IMPORTRED_FILE_NOT_FOUND:
+    {
+        printf("       Imported file not found.\n");
+
+        if (flg_extra_info != NULL)
+        {
+            if (e->v.ce31.file_name != NULL)
+            {
+                printf("\nAdditional meta-data returned by the interpreter:\n");
+                printf("[Module: %s]\n", e->v.ce31.file_name);
+            }
+
+            if (e->v.ce31.paths != NULL)
+            {
+                printf("\nFiles searched: \n");
+                while (*(e->v.ce31.paths) != NULL)
+                    printf("['%s']\n", *(e->v.ce31.paths++));
             }
         }
     }
@@ -249,4 +270,16 @@ void OSF_RaiseException_SyntaxError(int line, char *msg)
         .type = EXCEPT_SYNTAX_ERROR,
         .line = line,
         .v.ce10.additional_msg = msg});
+}
+
+void OSF_RaiseException_ImportFileDNE(int line, char *fname, char **pats)
+{
+    OSF_SetException((except_t){
+        .type = EXCEPT_IMPORTRED_FILE_NOT_FOUND,
+        .line = line,
+        .v.ce31 = {
+            .file_name = fname,
+            .paths = pats
+        }
+    });
 }

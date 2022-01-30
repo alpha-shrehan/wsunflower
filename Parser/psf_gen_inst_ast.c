@@ -3360,7 +3360,6 @@ stmt_t _PSF_ConstructImportLine(mod_t *mod, int idx)
                     OSF_RaiseException_SyntaxError(arr->nodes[idx].line, NULL);
                 return (stmt_t){};
             }
-            
             ret.v.import_s.alias = OSF_Malloc((strlen(arr->nodes[idx + 1].v.Identifier.val) + 1) * sizeof(char));
             strcpy(ret.v.import_s.alias, arr->nodes[idx + 1].v.Identifier.val);
         }
@@ -3408,6 +3407,14 @@ stmt_t _PSF_ConstructImportLine(mod_t *mod, int idx)
         strcat(name_path, ".sf");
 
         name_path = _PSF_GetValidImportPath(name_path, mod->path_prefix != NULL ? 1 : 0, mod->path_prefix);
+
+        if (OSF_GetExceptionState())
+        {
+            if ((*OSF_GetExceptionLog()).type == EXCEPT_IMPORTRED_FILE_NOT_FOUND)
+                OSF_GetExceptionLog()->line = arr->nodes->line + 1;
+
+            return (stmt_t){};
+        }
 
         ret.v.import_s.path = OSF_strdup(name_path);
         OSF_Free(name_path);
@@ -3514,7 +3521,21 @@ stmt_t _PSF_ConstructImportLine(mod_t *mod, int idx)
                     if (ret.v.import_s.arg_count)
                         ret.v.import_s.args = OSF_Realloc(ret.v.import_s.args, (ret.v.import_s.arg_count + 1) * sizeof(expr_t));
 
-                    ret.v.import_s.args[ret.v.import_s.arg_count++] = SF_FrameExpr_fromByte(args_arr);
+                    if (args_arr->size)
+                    {
+                        int imp_all = args_arr->size == 1 &&
+                                      args_arr->nodes->nval_type == AST_NVAL_TYPE_OPERATOR &&
+                                      !strcmp(args_arr->nodes->v.Operator.val, "*");
+
+                        if (imp_all)
+                            ret.v.import_s.args[ret.v.import_s.arg_count++] = (expr_t){
+                                .type = EXPR_TYPE_CONSTANT,
+                                .v.constant = {
+                                    .constant_type = CONSTANT_TYPE_DTYPE,
+                                    .DType.type = DATA_TYPE_VOID}};
+                        else
+                            ret.v.import_s.args[ret.v.import_s.arg_count++] = SF_FrameExpr_fromByte(args_arr);
+                    }
 
                     OSF_Free(args_arr->nodes);
                     OSF_Free(args_arr);
@@ -3588,6 +3609,14 @@ stmt_t _PSF_ConstructImportLine(mod_t *mod, int idx)
         strcat(name_path, ".sf");
 
         name_path = _PSF_GetValidImportPath(name_path, mod->path_prefix != NULL ? 1 : 0, mod->path_prefix);
+
+        if (OSF_GetExceptionState())
+        {
+            if ((*OSF_GetExceptionLog()).type == EXCEPT_IMPORTRED_FILE_NOT_FOUND)
+                OSF_GetExceptionLog()->line = arr->nodes->line + 1;
+
+            return (stmt_t){};
+        }
 
         ret.v.import_s.path = OSF_strdup(name_path);
         OSF_Free(name_path);
@@ -3799,6 +3828,9 @@ char *_PSF_GetValidImportPath(char *name_path, int extra_paths_count, ...)
 
     char *new_path = NULL;
     FILE *f_check = fopen(name_path, "r");
+    char **paths_ = OSF_Malloc(sizeof(char *));
+    int p_c = 0;
+
     if (f_check != NULL)
     {
         new_path = OSF_strdup(name_path);
@@ -3811,6 +3843,11 @@ char *_PSF_GetValidImportPath(char *name_path, int extra_paths_count, ...)
         name_path[strstr(name_path, ".sf") - name_path] = '\0';
 
         sprintf(fmt, "%s/__main__.sf", name_path);
+
+        if (p_c)
+            paths_ = OSF_Realloc(paths_, (p_c + 1) * sizeof(char *));
+
+        paths_[p_c++] = OSF_strdup(fmt);
 
         f_check = fopen(fmt, "r"); // check for file
 
@@ -3831,6 +3868,11 @@ char *_PSF_GetValidImportPath(char *name_path, int extra_paths_count, ...)
 
                 sprintf(fmt, "%s%s.sf", cpath, name_path);
 
+                if (p_c)
+                    paths_ = OSF_Realloc(paths_, (p_c + 1) * sizeof(char *));
+
+                paths_[p_c++] = OSF_strdup(fmt);
+
                 f_check = fopen(fmt, "r"); // check for file
 
                 if (f_check != NULL)
@@ -3845,6 +3887,11 @@ char *_PSF_GetValidImportPath(char *name_path, int extra_paths_count, ...)
 
                 fmt = OSF_Malloc((strlen(cpath) + strlen(name_path) + 20) * sizeof(char));
                 sprintf(fmt, "%s%s/__main__.sf", cpath, name_path);
+
+                if (p_c)
+                    paths_ = OSF_Realloc(paths_, (p_c + 1) * sizeof(char *));
+
+                paths_[p_c++] = OSF_strdup(fmt);
 
                 f_check = fopen(fmt, "r"); // check for directry module
 
@@ -3868,6 +3915,11 @@ char *_PSF_GetValidImportPath(char *name_path, int extra_paths_count, ...)
                     char *fmt = OSF_Malloc((strlen(_PSF_ImportPrefixes[i]) + strlen(name_path) + 5) * sizeof(char));
                     sprintf(fmt, "%s%s.sf", _PSF_ImportPrefixes[i], name_path);
 
+                    if (p_c)
+                        paths_ = OSF_Realloc(paths_, (p_c + 1) * sizeof(char *));
+
+                    paths_[p_c++] = OSF_strdup(fmt);
+
                     f_check = fopen(fmt, "r"); // check for file
 
                     if (f_check != NULL)
@@ -3882,6 +3934,11 @@ char *_PSF_GetValidImportPath(char *name_path, int extra_paths_count, ...)
 
                     fmt = OSF_Malloc((strlen(_PSF_ImportPrefixes[i]) + strlen(name_path) + 20) * sizeof(char));
                     sprintf(fmt, "%s%s/__main__.sf", _PSF_ImportPrefixes[i], name_path);
+
+                    if (p_c)
+                        paths_ = OSF_Realloc(paths_, (p_c + 1) * sizeof(char *));
+
+                    paths_[p_c++] = OSF_strdup(fmt);
 
                     f_check = fopen(fmt, "r"); // check for directry module
 
@@ -3901,8 +3958,20 @@ char *_PSF_GetValidImportPath(char *name_path, int extra_paths_count, ...)
         }
     }
 
+    if (p_c)
+        paths_ = OSF_Realloc(paths_, (p_c + 1) * sizeof(char *));
+
+    paths_[p_c++] = NULL;
+
     if (new_path == NULL)
-        assert(0 && SF_FMT("Error: Imported file does not exist."));
+    {
+        OSF_RaiseException_ImportFileDNE(0, name_path, paths_);
+
+        va_end(vl);
+        return NULL;
+    }
+
+    OSF_Free(paths_);
 
     va_end(vl);
     return new_path;

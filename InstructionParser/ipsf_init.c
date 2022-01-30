@@ -831,27 +831,36 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
             {
                 if (curr.v.import_s.alias == NULL)
                 {
-                    for (size_t j = 0; j < curr.v.import_s.arg_count; j++)
+                    int carry_on = 1;
+
+                    if (_IPSF_IsDataType_Void(*(curr.v.import_s.args)))
                     {
-                        assert(
-                            curr.v.import_s.args[j].type == EXPR_TYPE_VARIABLE &&
-                            SF_FMT("Error: Syntax Error."));
+                        for (size_t j = 0; j < imod->var_holds_size; j++)
+                            _IPSF_AddVar_toModule(mod, imod->var_holds[j].name, imod->var_holds[j].val);
 
-                        var_t *g_v = IPSF_GetVar_fromMod(imod, curr.v.import_s.args[j].v.variable.name, NULL);
+                        carry_on = 0;
+                    }
 
-                        if (g_v == NULL)
+                    if (carry_on)
+                    {
+                        for (size_t j = 0; j < curr.v.import_s.arg_count; j++)
                         {
-                            OSF_SetException((except_t){
-                                .type = EXCEPT_VARIABLE_DOES_NOT_EXIST,
-                                .line = curr.line,
-                                .v.ce1 = {
-                                    .m_ref = imod,
-                                    .vname = curr.v.import_s.args[j].v.variable.name}});
+                            var_t *g_v = IPSF_GetVar_fromMod(imod, curr.v.import_s.args[j].v.variable.name, NULL);
 
-                            goto __label_abrupt_end_IPSF_ExecIT_fromMod;
+                            if (g_v == NULL)
+                            {
+                                OSF_SetException((except_t){
+                                    .type = EXCEPT_VARIABLE_DOES_NOT_EXIST,
+                                    .line = curr.line,
+                                    .v.ce1 = {
+                                        .m_ref = imod,
+                                        .vname = curr.v.import_s.args[j].v.variable.name}});
+
+                                goto __label_abrupt_end_IPSF_ExecIT_fromMod;
+                            }
+
+                            _IPSF_AddVar_toModule(mod, g_v->name, g_v->val);
                         }
-
-                        _IPSF_AddVar_toModule(mod, g_v->name, g_v->val);
                     }
                 }
                 else
@@ -861,27 +870,36 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                     mmod->var_holds = OSF_Malloc(sizeof(var_t));
                     mmod->var_holds_size = 0;
 
-                    for (size_t j = 0; j < curr.v.import_s.arg_count; j++)
+                    int carry_on = 1;
+
+                    if (_IPSF_IsDataType_Void(*(curr.v.import_s.args)))
                     {
-                        assert(
-                            curr.v.import_s.args[j].type == EXPR_TYPE_VARIABLE &&
-                            SF_FMT("Error: Syntax Error."));
+                        for (size_t j = 0; j < imod->var_holds_size; j++)
+                            _IPSF_AddVar_toModule(mmod, imod->var_holds[j].name, imod->var_holds[j].val);
 
-                        var_t *g_v = IPSF_GetVar_fromMod(imod, curr.v.import_s.args[j].v.variable.name, NULL);
+                        carry_on = 0;
+                    }
 
-                        if (g_v == NULL)
+                    if (carry_on)
+                    {
+                        for (size_t j = 0; j < curr.v.import_s.arg_count; j++)
                         {
-                            OSF_SetException((except_t){
-                                .type = EXCEPT_VARIABLE_DOES_NOT_EXIST,
-                                .line = curr.line,
-                                .v.ce1 = {
-                                    .m_ref = imod,
-                                    .vname = curr.v.import_s.args[j].v.variable.name}});
+                            var_t *g_v = IPSF_GetVar_fromMod(imod, curr.v.import_s.args[j].v.variable.name, NULL);
 
-                            goto __label_abrupt_end_IPSF_ExecIT_fromMod;
+                            if (g_v == NULL)
+                            {
+                                OSF_SetException((except_t){
+                                    .type = EXCEPT_VARIABLE_DOES_NOT_EXIST,
+                                    .line = curr.line,
+                                    .v.ce1 = {
+                                        .m_ref = imod,
+                                        .vname = curr.v.import_s.args[j].v.variable.name}});
+
+                                goto __label_abrupt_end_IPSF_ExecIT_fromMod;
+                            }
+
+                            _IPSF_AddVar_toModule(mmod, g_v->name, g_v->val);
                         }
-
-                        _IPSF_AddVar_toModule(mmod, g_v->name, g_v->val);
                     }
 
                     int md_idx = PSG_AddModule(mmod);
@@ -2281,15 +2299,13 @@ expr_t IPSF_ReduceExpr_toConstant(mod_t *mod, expr_t expr)
     if (!OSF_GetExceptionState())
         fex_res = *ex_res;
     else
-        fex_res = (expr_t) {
+        fex_res = (expr_t){
             .type = EXPR_TYPE_CONSTANT,
             .line = expr.line,
             .v.constant = {
                 .constant_type = CONSTANT_TYPE_DICT,
-                .DType.type = DATA_TYPE_NONE
-            }
-        };
-    
+                .DType.type = DATA_TYPE_NONE}};
+
     OSF_Free(ex_res);
     return fex_res;
 }

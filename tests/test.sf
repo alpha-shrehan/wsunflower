@@ -1,1 +1,8 @@
-import test as t
+from tests.other import *
+from tests.other import * as q
+
+assert x == q.x
+assert y == q.y
+assert z == q.z
+assert sum == q.sum
+assert Test == q.Test
