@@ -15,7 +15,7 @@ Sunflower uses many third party libraries for its functioning. For linking such 
 * Statically for Unix based OS.
 
 Dynamic libraries for Windows are provided in the ```DLLs/``` folder and static libraries for Unix based OS are provided in the ```StaticLibs/``` folder.
-The various libraries used in Sunflower are as follows:
+The various libraries used in Sunflower are as follows: <br>
 	* [BDW-GC](https://github.com/ivmai/bdwgc): Boehm-Demers-Weiser Garbage Collector.
 	* [libatomic_ops](github.com/ivmai/libatomic_ops.git): Required by GC.
 
