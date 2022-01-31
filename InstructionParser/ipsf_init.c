@@ -1167,6 +1167,8 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
             {
                 expr_t temp = IPSF_ReduceExpr_toConstant(mod, expr->v.function_call.args[j]);
 
+                *RES = temp;
+
                 if (OSF_GetExceptionState())
                     goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
             }
@@ -2094,9 +2096,9 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
         fdef.v.Coded.args = var_mems;
         fdef.v.Coded.body = OSF_Malloc(sizeof(stmt_t));
         *(fdef.v.Coded.body) = (stmt_t){
-            .type = STATEMENT_TYPE_EXPR,
+            .type = STATEMENT_TYPE_RETURN,
             .line = expr->line,
-            .v.expr.expr = _body};
+            .v.return_stmt.expr = _body};
         fdef.v.Coded.body_size = 1;
 
         int f_idx = PSG_AddFunction(fdef);
