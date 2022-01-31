@@ -153,6 +153,40 @@ void OSF_RaiseExceptionMessage(except_t *e)
         }
     }
     break;
+    case EXCEPT_CODE_ASSERTION_ERROR:
+    {
+        printf("       Assertion Error");
+
+        if (e->v.ce11.msg == NULL)
+            printf(".\n");
+        else
+            printf(": %s\n", e->v.ce11.msg);
+    }
+    break;
+    case EXCEPT_CLASS_HAS_NO_CONSTRUCTOR:
+    {
+        printf("       Class has no constructor.\n");
+
+        if (flg_extra_info != NULL)
+        {
+            printf("\nAdditional meta-data returned by the interpreter:\n");
+            if (e->v.ce12.class_ref != NULL)
+                printf("[<class '%s'>]\n", e->v.ce12.class_ref->name);
+        }
+    }
+    break;
+    case EXCEPT_ENTITY_IS_NOT_A_FUNCTION:
+    {
+        printf("       Entity is not a function.\n");
+
+        if (flg_extra_info != NULL)
+        {
+            printf("\nAdditional meta-data returned by the interpreter:\n");
+            if (e->v.ce3.v_ref != NULL)
+                printf("[Variable Name: '%s']\n", e->v.ce3.v_ref->name);
+        }
+    }
+    break;
 
     default:
         break;
@@ -279,7 +313,30 @@ void OSF_RaiseException_ImportFileDNE(int line, char *fname, char **pats)
         .line = line,
         .v.ce31 = {
             .file_name = fname,
-            .paths = pats
-        }
-    });
+            .paths = pats}});
+}
+
+void OSF_RaiseException_CodeAssertionError(int line, char *msg)
+{
+    OSF_SetException((except_t){
+        .type = EXCEPT_CODE_ASSERTION_ERROR,
+        .line = line,
+        .v.ce11 = {
+            .msg = msg}});
+}
+
+void OSF_RaiseException_ClassHasNoConstructor(int line, class_t *c_ref)
+{
+    OSF_SetException((except_t){
+        .type = EXCEPT_CLASS_HAS_NO_CONSTRUCTOR,
+        .line = line,
+        .v.ce12.class_ref = c_ref});
+}
+
+void OSF_RaiseException_EntityIsNotAFunction(int line, var_t *v_ref)
+{
+    OSF_SetException((except_t){
+        .type = EXCEPT_ENTITY_IS_NOT_A_FUNCTION,
+        .line = line,
+        .v.ce3.v_ref = v_ref});
 }

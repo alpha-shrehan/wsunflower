@@ -349,6 +349,104 @@ expr_t SF_FrameExpr_fromByte(psf_byte_array_t *arr)
                     doBreak = 1;
                     ret_now = 1;
                 }
+                else if (!strcmp(tok, "fun"))
+                {
+                    expr_t res;
+                    res.type = EXPR_TYPE_LAMBDA;
+                    res.v.lambda_.body = OSF_Malloc(sizeof(expr_t));
+                    res.v.lambda_.var_size = 0;
+                    var_t *_vars = OSF_Malloc(sizeof(var_t));
+
+                    psf_byte_array_t *_vars_arr = _PSF_newByteArray();
+                    int gb = 0;
+                    i++; // Eat 'fun'
+
+                    while (i < arr->size)
+                    {
+                        psf_byte_t c = arr->nodes[i];
+
+                        if (c.nval_type == AST_NVAL_TYPE_OPERATOR)
+                        {
+                            if (!strcmp(c.v.Operator.val, "=") && !gb)
+                                break;
+
+                            if (!strcmp(c.v.Operator.val, "(") ||
+                                !strcmp(c.v.Operator.val, "{") ||
+                                !strcmp(c.v.Operator.val, "["))
+                                gb++;
+                            else if (!strcmp(c.v.Operator.val, ")") ||
+                                     !strcmp(c.v.Operator.val, "}") ||
+                                     !strcmp(c.v.Operator.val, "]"))
+                                gb--;
+                        }
+
+                        PSF_AST_ByteArray_AddNode(_vars_arr, c);
+                        i++;
+                    }
+                    int _decl_enclosed_in_brac = _vars_arr->nodes->nval_type == AST_NVAL_TYPE_OPERATOR &&
+                                                 !strcmp(_vars_arr->nodes->v.Operator.val, "(") &&
+                                                 _vars_arr->nodes[_vars_arr->size - 1].nval_type == AST_NVAL_TYPE_OPERATOR &&
+                                                 !strcmp(_vars_arr->nodes[_vars_arr->size - 1].v.Operator.val, ")");
+                    gb = 0;
+                    int prev_idx = _decl_enclosed_in_brac;
+
+                    for (size_t j = prev_idx; j < _vars_arr->size - _decl_enclosed_in_brac; j++)
+                    {
+                        psf_byte_t c = _vars_arr->nodes[j];
+
+                        if (c.nval_type == AST_NVAL_TYPE_OPERATOR)
+                        {
+                            if (!strcmp(c.v.Operator.val, ",") && !gb)
+                            {
+                                psf_byte_array_t _c;
+                                _c.nodes = _vars_arr->nodes + prev_idx;
+                                _c.size = j - prev_idx;
+
+                                if (res.v.lambda_.var_size)
+                                    _vars = OSF_Realloc(_vars, (res.v.lambda_.var_size + 1) * sizeof(var_t));
+
+                                _vars[res.v.lambda_.var_size++] = _PSF_GenerateVarFromByte(&_c);
+
+                                prev_idx = j + 1;
+                                continue;
+                            }
+
+                            if (!strcmp(c.v.Operator.val, "(") ||
+                                !strcmp(c.v.Operator.val, "{") ||
+                                !strcmp(c.v.Operator.val, "["))
+                                gb++;
+                            else if (!strcmp(c.v.Operator.val, ")") ||
+                                     !strcmp(c.v.Operator.val, "}") ||
+                                     !strcmp(c.v.Operator.val, "]"))
+                                gb--;
+                        }
+                    }
+
+                    if (prev_idx != _vars_arr->size - _decl_enclosed_in_brac)
+                    {
+                        psf_byte_array_t _c;
+                        _c.nodes = _vars_arr->nodes + prev_idx;
+                        _c.size = _vars_arr->size - _decl_enclosed_in_brac - prev_idx;
+
+                        if (res.v.lambda_.var_size)
+                            _vars = OSF_Realloc(_vars, (res.v.lambda_.var_size + 1) * sizeof(var_t));
+
+                        _vars[res.v.lambda_.var_size++] = _PSF_GenerateVarFromByte(&_c);
+                    }
+
+                    res.v.lambda_._vars = (void *)_vars;
+                    *(res.v.lambda_.body) = SF_FrameExpr_fromByte(&((psf_byte_array_t) {
+                        .nodes = arr->nodes + i + 1,
+                        .size = arr->size - i - 1
+                    }));
+
+                    OSF_Free(_vars_arr->nodes);
+                    OSF_Free(_vars_arr);
+
+                    ret = res;
+                    doBreak = 1;
+                    break;
+                }
             }
         }
         break;
@@ -2014,6 +2112,8 @@ void SF_FrameIT_fromAST(mod_t *mod)
 
                     OSF_Free(_cond->nodes);
                     OSF_Free(_cond);
+
+                    PSG_AddStmt_toMod(mod, new_stmt);
                 }
             }
         }
@@ -2045,7 +2145,10 @@ void PSG_PrintStatementType(enum StatementTypeEnum _en)
         "STATEMENT_TYPE_IMPORT",
         "STATEMENT_TYPE_COMMENT",
         "STATEMENT_TYPE_VAR_REF",
-        "STATEMENT_TYPE_REPEAT"};
+        "STATEMENT_TYPE_REPEAT",
+        "STATEMENT_TYPE_SWITCH",
+        "STATEMENT_TYPE_ASSERT",
+        "STATEMENT_TYPE_DECORATOR"};
 
     printf("%s(%d)\n", A[_en + 1 < (sizeof(A) / sizeof(A[0])) ? _en + 1 : 0], _en);
 }
@@ -2141,7 +2244,9 @@ void PSG_PrintExprType(enum ExprTypeEnum _en)
         "EXPR_TYPE_INLINE_REPEAT",
         "EXPR_TYPE_CLASS",
         "EXPR_TYPE_MEMBER_ACCESS",
-        "EXPR_TYPE_MODULE"};
+        "EXPR_TYPE_MODULE",
+        "EXPR_TYPE_IN_CLAUSE",
+        "EXPR_TYPE_LAMBDA"};
 
     printf("%s(%d)\n", A[_en + 1 < (sizeof(A) / sizeof(A[0])) ? _en + 1 : 0], _en);
 }

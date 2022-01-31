@@ -1031,17 +1031,19 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
 
             if (!_PSF_EntityIsTrue(_c_red))
             {
+                except_t exc;
+                exc.type = EXCEPT_CODE_ASSERTION_ERROR;
+                exc.line = curr.line;
+                exc.v.ce11.msg = NULL;
+
                 if (curr.v.assert_stmt.message != NULL)
                 {
                     expr_t _m_red = IPSF_ReduceExpr_toConstant(mod, *(curr.v.assert_stmt.message));
-                    printf("%s\n", _IPSF_ObjectRepr(_m_red, 0));
-                }
-                else
-                {
-                    assert(0 && SF_FMT("Error: Assertion Error."));
+                    exc.v.ce11.msg = OSF_strdup(_IPSF_ObjectRepr(_m_red, 0));
                 }
 
-                exit(0);
+                OSF_SetException(exc);
+                goto __label_abrupt_end_IPSF_ExecIT_fromMod;
             }
         }
         break;
@@ -1281,8 +1283,17 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
             int ve = 0;
             var_t *var__main = IPSF_GetVar_fromMod(inst_ref->mod, "__main__", &ve);
 
-            assert(ve != IPSF_ERR_VAR_NOT_FOUND && SF_FMT("Class has no constructor."));
-            assert(var__main->val.type == EXPR_TYPE_FUNCTION && SF_FMT("`__main__' not a function"));
+            if (ve == IPSF_ERR_VAR_NOT_FOUND)
+                OSF_RaiseException_ClassHasNoConstructor(expr->line, inst_ref);
+
+            if (OSF_GetExceptionState())
+                goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
+
+            if (var__main->val.type != EXPR_TYPE_FUNCTION)
+                OSF_RaiseException_EntityIsNotAFunction(expr->line, var__main);
+
+            if (OSF_GetExceptionState())
+                goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
 
             expr_t *cons_args = OSF_Malloc((expr->v.function_call.arg_size + 1) * sizeof(expr_t));
             *cons_args = (expr_t){
@@ -2057,6 +2068,46 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
             goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
 
         *RES = _IPSF_Entity_IsIn_Entity(lhs, rhs, mod);
+    }
+    break;
+    case EXPR_TYPE_LAMBDA:
+    {
+        // TODO: va_args
+        var_t *var_mems = (var_t *)expr->v.lambda_._vars;
+        int v_size = expr->v.lambda_.var_size;
+        expr_t *_body = expr->v.lambda_.body;
+        int aa_c = v_size;
+
+        for (size_t j = 0; j < v_size; j++)
+            if (!_IPSF_IsDataType_Void(var_mems[j].val))
+            {
+                aa_c = -2;
+                break;
+            }
+
+        fun_t fdef;
+        fdef.name = "<lambda>";
+        fdef.is_native = 0;
+        fdef.arg_acceptance_count = aa_c;
+        fdef.parent = mod;
+        fdef.v.Coded.arg_size = v_size;
+        fdef.v.Coded.args = var_mems;
+        fdef.v.Coded.body = OSF_Malloc(sizeof(stmt_t));
+        *(fdef.v.Coded.body) = (stmt_t){
+            .type = STATEMENT_TYPE_EXPR,
+            .line = expr->line,
+            .v.expr.expr = _body};
+        fdef.v.Coded.body_size = 1;
+
+        int f_idx = PSG_AddFunction(fdef);
+
+        *RES = (expr_t){
+            .type = EXPR_TYPE_FUNCTION,
+            .line = expr->line,
+            .next = NULL,
+            .v.function_s = {
+                .index = f_idx,
+                .name = "<lambda>"}};
     }
     break;
     default:
@@ -3180,6 +3231,26 @@ expr_t *_IPSF_CallFunction(fun_t fun_s, expr_t *args, int arg_size, mod_t *mod)
 
     if (fun_s.arg_acceptance_count >= 0)
         assert(arg_size == fun_s.arg_acceptance_count && SF_FMT("Error: Invalid number of arguments passed."));
+    else
+    {
+        switch (fun_s.arg_acceptance_count)
+        {
+        case -2:
+        {
+            int f_c = 0;
+
+            for (size_t j = 0; j < fun_s.v.Coded.arg_size; j++)
+                if (_IPSF_IsDataType_Void(fun_s.v.Coded.args[j].val))
+                    f_c++;
+            
+            assert(f_c <= arg_size && SF_FMT("Error: Invalid number of arguments passed."));
+        }
+            break;
+        
+        default:
+            break;
+        }
+    }
 
     mod_t *fun_mod = SF_CreateModule(MODULE_TYPE_FUNCTION, NULL);
     OSF_Free(BODY(fun_mod)->body);

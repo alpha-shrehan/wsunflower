@@ -69,7 +69,7 @@ struct _except_s
 
         struct
         {
-            int algn;
+            var_t *v_ref;
         } ce3;
 
         struct
@@ -109,12 +109,12 @@ struct _except_s
 
         struct
         {
-            int algn;
+            char *msg;
         } ce11;
 
         struct
         {
-            int algn;
+            class_t *class_ref;
         } ce12;
 
         struct
@@ -250,3 +250,6 @@ void OSF_ClearBacklog(void);
 backtrace_t OSF_CreateBackLog(int, int);
 void OSF_RaiseException_SyntaxError(int, char *);
 void OSF_RaiseException_ImportFileDNE(int, char *, char **);
+void OSF_RaiseException_CodeAssertionError(int, char *);
+void OSF_RaiseException_ClassHasNoConstructor(int, class_t *);
+void OSF_RaiseException_EntityIsNotAFunction(int, var_t *);

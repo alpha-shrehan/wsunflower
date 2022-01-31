@@ -1,8 +1,4 @@
-from tests.other import *
-from tests.other import * as q
-
-assert x == q.x
-assert y == q.y
-assert z == q.z
-assert sum == q.sum
-assert Test == q.Test
+a = fun (x, y = 2, z = 3) = write(x, y, z)
+a(1)
+a(10, 11)
+a(20, 21, 22)

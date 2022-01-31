@@ -26,7 +26,8 @@ enum ExprTypeEnum
     EXPR_TYPE_CLASS,
     EXPR_TYPE_MEMBER_ACCESS,
     EXPR_TYPE_MODULE,
-    EXPR_TYPE_IN_CLAUSE
+    EXPR_TYPE_IN_CLAUSE,
+    EXPR_TYPE_LAMBDA
 };
 
 enum ConstantTypeEnum
@@ -237,6 +238,13 @@ struct _expr
             struct _expr *_lhs;
             struct _expr *_rhs;
         } in_clause;
+
+        struct
+        {
+            void *_vars; // Cast to var_t *
+            int var_size;
+            struct _expr *body;
+        } lambda_;
 
     } v;
 };
