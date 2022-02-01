@@ -2,13 +2,13 @@
 > A programming language for fast coding and micro systems.
 
 Contents:
-* [General Information](#general_information)
-* [Build Instructions](#build_instructions)
+* [General Information](#generalinformation)
+* [Build Instructions](#buildinstructions)
 * [Embedding](#embedding)
 * [Copyright](#copyright)
 
 
-#### <u id='general_information'>General Information:</u>
+#### <u id='generalinformation'>General Information:</u>
 This is a programming language implemented in C, targeted for automation and scripts.
 Sunflower uses many third party libraries for its functioning. For linking such libraries, it is recommended to link them
 * Dynamically for Windows.
@@ -23,7 +23,7 @@ The various libraries used in Sunflower are as follows: <br>
 >  Always compile it statically (default build option). For Windows, use MSYS2 or Cygwin.
 >  Use a compiler tool-chain which supports the creation and linking of ```.a``` files.
 
-#### <u id='build_instructions'>Build Instructions</u>
+#### <u id='buildinstructions'>Build Instructions</u>
 Build Setup
 ```bash
 git clone https://www.github.com/alpha-shrehan/wsunflower.git
