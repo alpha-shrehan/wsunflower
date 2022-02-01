@@ -46,7 +46,7 @@ cmake ..
 cmake --build . --target all -DCMAKE_BUILD_TYPE=Debug -j2
 ```
 
-After a successful build, ```libsunflower.a``` should be present in ```build/``` folder.
+After a successful build, ```libsunflower.a``` should be present in the ```build/``` folder.
 
 #### <u id='embedding'>Embedding</u>
 An easy to use Sunflower API is still in development, and will be ready in the future releases. Kindly refer to [HACKING](#hacking) for high level embedding.
