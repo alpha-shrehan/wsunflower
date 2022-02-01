@@ -191,7 +191,7 @@ Function configuration:
 fun_t print_fun = (fun_t){
 	.name = "print",
 	.is_native = 1,
-	.arg_acceptance_count = 1,
+	.arg_acceptance_count = 1 /* -1 for va_args, -2 for default parameters, -1 for va_args with default parameters */,
 	.v.Native = {
 		.arg_size = 1,
 		.args = OSF_Malloc(sizeof(expr_t /* var_t for Non-Native functions */)),
@@ -201,7 +201,7 @@ fun_t print_fun = (fun_t){
 print_fun.v.Native.args[0] = (expr_t) {
 	.type = EXPR_TYPE_VARIABLE,
 	.v.variable = {.name = "val"},
-	.next = NULL /* Recommended */
+	.next = NULL /* Default value for the variable (NULL for no default value) */
 };
 
 int func_idx = PSG_AddFunction(print_fun);
