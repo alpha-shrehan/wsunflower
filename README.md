@@ -2,8 +2,8 @@
 > A programming language for fast coding and micro systems.
 
 Contents:
-* [General Information](#generalinformation)
-* [Build Instructions](#buildinstructions)
+* [General Information](#general-information)
+* [Build Instructions](#build-instructions)
 * [Embedding](#embedding)
 * [Copyright](#copyright)
 
