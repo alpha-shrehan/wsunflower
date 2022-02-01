@@ -110,5 +110,5 @@ expr_t Sf_Dict_Get_fromKey(dict_t *nd, expr_t key)
             return nd->vals[i];
     }
 
-    assert(0 && SF_FMT("Error: Dict has no member %s."));
+    assert(0 && SF_FMT("Dict has no member %s."));
 }

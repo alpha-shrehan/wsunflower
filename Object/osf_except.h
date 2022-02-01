@@ -17,7 +17,7 @@ enum SFExceptionMessageCode
     EXCEPT_CLASS_OBJ_NOT_AN_ITERATIVE = 5,
     EXCEPT_DICT_ITERATION_ALLOWS_MAX_2_SUBSTITUTION_VARS = 6,
     EXCEPT_ITERATION_COUNT_MUST_BE_AN_INTEGER = 7,
-    EXCEPT_RETURN_CALLED_OUTSIZE_FUNCTION = 8,
+    EXCEPT_RETURN_CALLED_OUTSIDE_FUNCTION = 8,
     EXCEPT_IMPORT_MUST_HAVE_AN_ALIAS = 9,
     EXCEPT_SYNTAX_ERROR = 10,
     EXCEPT_CODE_ASSERTION_ERROR = 11,
@@ -40,7 +40,9 @@ enum SFExceptionMessageCode
     EXCEPT_UNKNOWN_ENTITIES_TO_COMPARE = 28,
     EXCEPT_ENTITY_MUST_BE_A_STRING = 29,
     EXCEPT_INVALID_ITERATOR = 30,
-    EXCEPT_IMPORTRED_FILE_NOT_FOUND = 31
+    EXCEPT_IMPORTRED_FILE_NOT_FOUND = 31,
+    EXCEPT_NON_DEFAULT_ARGUMENT_FOLLOWS_A_DEFAULT_ARG = 32,
+    EXCEPT_NON_DEFAULT_ARGUMENT_FOLLOWS_VAR_ARGS = 33
 };
 
 struct _except_s
@@ -64,7 +66,7 @@ struct _except_s
 
         struct
         {
-            int algn;
+            class_t *c_ref;
         } ce2;
 
         struct
@@ -79,12 +81,12 @@ struct _except_s
 
         struct
         {
-            int algn;
+            class_t *c_ref;
         } ce5;
 
         struct
         {
-            int algn;
+            int vars_provided;
         } ce6;
 
         struct
@@ -119,12 +121,12 @@ struct _except_s
 
         struct
         {
-            int algn;
+            mod_t *mod_ref;
         } ce13;
 
         struct
         {
-            int algn;
+            var_t *var_ref;
         } ce14;
 
         struct
@@ -134,47 +136,50 @@ struct _except_s
 
         struct
         {
-            int algn;
+            expr_t ent_got;
         } ce16;
 
         struct
         {
-            int algn;
+            expr_t lhs;
+            expr_t rhs;
         } ce17;
 
         struct
         {
-            int algn;
+            class_t *c_ref;
         } ce18;
 
         struct
         {
-            int algn;
+            class_t *c_ref;
         } ce19;
 
         struct
         {
-            int algn;
+            expr_t obj;
+            char *member;
         } ce20;
 
         struct
         {
-            int algn;
+            mod_t *mod;
+            char *member;
         } ce21;
 
         struct
         {
-            int algn;
+            expr_t entity;
         } ce22;
 
         struct
         {
-            int algn;
+            expr_t index;
         } ce23;
 
         struct
         {
-            int algn;
+            expr_t ent;
         } ce24;
 
         struct
@@ -184,7 +189,8 @@ struct _except_s
 
         struct
         {
-            int algn;
+            int args_passed;
+            int args_expected;
         } ce26;
 
         struct
@@ -194,12 +200,13 @@ struct _except_s
 
         struct
         {
-            int algn;
+            expr_t ent1;
+            expr_t ent2;
         } ce28;
 
         struct
         {
-            int algn;
+            expr_t ent;
         } ce29;
 
         struct
@@ -212,6 +219,16 @@ struct _except_s
             char *file_name;
             char **paths;
         } ce31;
+
+        struct
+        {
+            int algn;
+        } ce32;
+
+        struct
+        {
+            int algn;
+        } ce33;
 
     } v;
 };
@@ -248,8 +265,39 @@ backtrace_t **OSF_GetBacklog(void);
 int *OSF_GetBacklogSize(void);
 void OSF_ClearBacklog(void);
 backtrace_t OSF_CreateBackLog(int, int);
+
+// Exception routines
+void OSF_RaiseException_VariableDoesNotExist(int, mod_t *, char *);
 void OSF_RaiseException_SyntaxError(int, char *);
 void OSF_RaiseException_ImportFileDNE(int, char *, char **);
 void OSF_RaiseException_CodeAssertionError(int, char *);
 void OSF_RaiseException_ClassHasNoConstructor(int, class_t *);
 void OSF_RaiseException_EntityIsNotAFunction(int, var_t *);
+void OSF_RaiseException_ReturnCalledOutsideFunction(int);
+void OSF_RaiseException_IndexOutOfRange(int, int, array_t);
+void OSF_RaiseException_ClassObjectIsNotAnIterable(int, class_t *);
+void OSF_RaiseException_IterativeMustBeAClassObject(int);
+void OSF_RaiseException_ClassObjectIsNotAnIterative(int, class_t *);
+void OSF_RaiseException_DictIterationAllowsMax2SubstitutionVars(int, int);
+void OSF_RaiseException_IterationCountMustBeAnInteger(int);
+void OSF_RaiseException_ImportMustHaveAnAlias(int);
+void OSF_RaiseException_ModuleHasNoConstructor(int, mod_t *);
+void OSF_RaiseException_ModuleConstructorIsNotAFunction(int, var_t *);
+void OSF_RaiseException_InlineAssignmentIsNotAllowedInModuleConstructors(int);
+void OSF_RaiseException_StepCountMustBeAnInteger(int, expr_t);
+void OSF_RaiseException_ToStepEntitiesMustBeAnInteger(int, expr_t, expr_t);
+void OSF_RaiseException_ClassObjectIsNotCallable(int, class_t *);
+void OSF_RaiseException_ClassObjectCannotBeIndexed(int, class_t *);
+void OSF_RaiseException_ObjectHasNoMember(int, expr_t, char *);
+void OSF_RaiseException_ModuleHasNoMember(int, mod_t *, char *);
+void OSF_RaiseException_CannotOverloadDotOnEntity(int, expr_t);
+void OSF_RaiseException_ArrayIndexMustBeAnInteger(int, expr_t);
+void OSF_RaiseException_CannotUseUnaryMinusOnNonNumberEntity(int, expr_t);
+void OSF_RaiseException_InvalidUsageOfOpPlus(int);
+void OSF_RaiseException_InvalidNumberOfArgsPassed(int, int, int);
+void OSF_RaiseException_FunctionWithVaArgsNeedsToHaveAnUndefinedVariable(int);
+void OSF_RaiseException_UnknownEntitiesToCompare(int, expr_t, expr_t);
+void OSF_RaiseException_EntityMustBeAString(int, expr_t);
+void OSF_RaiseException_InvalidIterator(int);
+void OSF_RaiseException_NonDefaultArgFollowsADefaultArg(int);
+void OSF_RaiseException_NonDefaultArgFollowsVarArgs(int);

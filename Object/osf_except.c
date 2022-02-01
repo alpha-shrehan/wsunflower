@@ -187,8 +187,14 @@ void OSF_RaiseExceptionMessage(except_t *e)
         }
     }
     break;
+    case EXCEPT_RETURN_CALLED_OUTSIDE_FUNCTION:
+    {
+        printf("       return called outside function.\n");
+    }
+    break;
 
     default:
+        printf("       Asynchronous exception not defined yet. (Code: %d)\n", e->type);
         break;
     }
 
@@ -215,7 +221,7 @@ void OSF_RaiseExceptionMessage(except_t *e)
                 printf("-");
             printf("\n");
         }
-    else if (e->line - 1)
+    else if (e->line - 1 > 0)
         printf("%d | %s\n", e->line - 1, spl_fd[e->line - 1]);
 }
 
@@ -339,4 +345,240 @@ void OSF_RaiseException_EntityIsNotAFunction(int line, var_t *v_ref)
         .type = EXCEPT_ENTITY_IS_NOT_A_FUNCTION,
         .line = line,
         .v.ce3.v_ref = v_ref});
+}
+
+void OSF_RaiseException_ReturnCalledOutsideFunction(int line)
+{
+    OSF_SetException((except_t){
+        .type = EXCEPT_RETURN_CALLED_OUTSIDE_FUNCTION,
+        .line = line});
+}
+
+void OSF_RaiseException_VariableDoesNotExist(int line, mod_t *mref, char *vname)
+{
+    OSF_SetException((except_t){
+        .type = EXCEPT_VARIABLE_DOES_NOT_EXIST,
+        .line = line,
+        .v.ce1 = {
+            .m_ref = mref,
+            .vname = vname}});
+}
+
+void OSF_RaiseException_IndexOutOfRange(int line, int idx, array_t ref)
+{
+    OSF_SetException((except_t){
+        .type = EXCEPT_INDEX_OUT_OF_RANGE,
+        .line = line,
+        .v.ce0 = {
+            .idx = idx,
+            .targ = ref}});
+}
+
+void OSF_RaiseException_ClassObjectIsNotAnIterable(int line, class_t *c_ref)
+{
+    OSF_SetException((except_t){
+        .type = EXCEPT_CLASS_OBJ_NOT_AN_ITERABLE,
+        .line = line,
+        .v.ce2.c_ref = c_ref});
+}
+
+void OSF_RaiseException_IterativeMustBeAClassObject(int line)
+{
+    OSF_SetException((except_t){
+        .type = EXCEPT_ITERATIVE_MUST_BE_A_CLASS_OBJECT,
+        .line = line});
+}
+
+void OSF_RaiseException_ClassObjectIsNotAnIterative(int line, class_t *c_ref)
+{
+    OSF_SetException((except_t){
+        .type = EXCEPT_CLASS_OBJ_NOT_AN_ITERATIVE,
+        .line = line,
+        .v.ce5.c_ref = c_ref});
+}
+
+void OSF_RaiseException_DictIterationAllowsMax2SubstitutionVars(int line, int vpr)
+{
+    OSF_SetException((except_t){
+        .type = EXCEPT_DICT_ITERATION_ALLOWS_MAX_2_SUBSTITUTION_VARS,
+        .line = line,
+        .v.ce6.vars_provided = vpr});
+}
+
+void OSF_RaiseException_IterationCountMustBeAnInteger(int line)
+{
+    OSF_SetException((except_t){
+        .type = EXCEPT_ITERATION_COUNT_MUST_BE_AN_INTEGER,
+        .line = line});
+}
+
+void OSF_RaiseException_ImportMustHaveAnAlias(int line)
+{
+    OSF_SetException((except_t){
+        .type = EXCEPT_IMPORT_MUST_HAVE_AN_ALIAS,
+        .line = line});
+}
+
+void OSF_RaiseException_ModuleHasNoConstructor(int line, mod_t *mref)
+{
+    OSF_SetException((except_t){
+        .type = EXCEPT_MODULE_HAS_NO_CONSTRUCTOR,
+        .line = line,
+        .v.ce13.mod_ref = mref});
+}
+
+void OSF_RaiseException_ModuleConstructorIsNotAFunction(int line, var_t *vref)
+{
+    OSF_SetException((except_t){
+        .type = EXCEPT_MODULE_CONSTRUCTOR_IS_NOT_A_FUNCTION,
+        .line = line,
+        .v.ce14.var_ref = vref});
+}
+
+void OSF_RaiseException_InlineAssignmentIsNotAllowedInModuleConstructors(int line)
+{
+    OSF_SetException((except_t){
+        .type = EXCEPT_INLINE_ASSIGNMENT_IS_NOT_ALLOWED_IN_MODULE_CONSTRUCTOR,
+        .line = line});
+}
+
+void OSF_RaiseException_StepCountMustBeAnInteger(int line, expr_t eg)
+{
+    OSF_SetException((except_t){
+        .type = EXCEPT_STEP_COUNT_MUST_BE_AN_INTEGER,
+        .line = line,
+        .v.ce16.ent_got = eg});
+}
+
+void OSF_RaiseException_ToStepEntitiesMustBeAnInteger(int line, expr_t e1, expr_t e2)
+{
+    OSF_SetException((except_t){
+        .type = EXCEPT_TO_STEP_ENTITIES_MUST_BE_AN_INTEGER,
+        .line = line,
+        .v.ce17 = {
+            .lhs = e1,
+            .rhs = e2}});
+}
+
+void OSF_RaiseException_ClassObjectIsNotCallable(int line, class_t *cref)
+{
+    OSF_SetException((except_t){
+        .type = EXCEPT_CLASS_OBJECT_IS_NOT_CALLABLE,
+        .line = line,
+        .v.ce18.c_ref = cref});
+}
+
+void OSF_RaiseException_ClassObjectCannotBeIndexed(int line, class_t *cref)
+{
+    OSF_SetException((except_t){
+        .type = EXCEPT_CLASS_OBJECT_CANNOT_BE_INDEXED,
+        .line = line,
+        .v.ce19.c_ref = cref});
+}
+
+void OSF_RaiseException_ObjectHasNoMember(int line, expr_t e, char *mem)
+{
+    OSF_SetException((except_t){
+        .type = EXCEPT_OBJECT_HAS_NO_MEMBER,
+        .line = line,
+        .v.ce20 = {
+            .member = mem,
+            .obj = e}});
+}
+
+void OSF_RaiseException_ModuleHasNoMember(int line, mod_t *mref, char *name)
+{
+    OSF_SetException((except_t){
+        .type = EXCEPT_MODULE_HAS_NO_MEMBER,
+        .line = line,
+        .v.ce21 = {
+            .member = name,
+            .mod = mref}});
+}
+
+void OSF_RaiseException_CannotOverloadDotOnEntity(int line, expr_t ent)
+{
+    OSF_SetException((except_t){
+        .type = EXCEPT_CANNOT_OVERLOAD_DOT_ON_ENTITY,
+        .line = line,
+        .v.ce22.entity = ent});
+}
+
+void OSF_RaiseException_ArrayIndexMustBeAnInteger(int line, expr_t ent)
+{
+    OSF_SetException((except_t){
+        .type = EXCEPT_ARRAY_INDEX_MUST_BE_AN_INTEGER,
+        .line = line,
+        .v.ce23.index = ent});
+}
+
+void OSF_RaiseException_CannotUseUnaryMinusOnNonNumberEntity(int line, expr_t ent)
+{
+    OSF_SetException((except_t){
+        .type = EXCEPT_CANNOT_USE_UNARY_MINUS_ON_NON_NUMBER_ENTITY,
+        .line = line,
+        .v.ce24.ent = ent});
+}
+
+void OSF_RaiseException_InvalidUsageOfOpPlus(int line)
+{
+    OSF_SetException((except_t){
+        .type = EXCEPT_INVALID_USAGE_OF_OP_PLUS,
+        .line = line});
+}
+
+void OSF_RaiseException_InvalidNumberOfArgsPassed(int line, int ap, int ae)
+{
+    OSF_SetException((except_t){
+        .type = EXCEPT_INVALID_NUMBER_OF_ARGS_PASSED,
+        .line = line,
+        .v.ce26 = {
+            .args_passed = ap,
+            .args_expected = ae}});
+}
+
+void OSF_RaiseException_FunctionWithVaArgsNeedsToHaveAnUndefinedVariable(int line)
+{
+    OSF_SetException((except_t){
+        .type = EXCEPT_FUNCTION_WITH_VARIABLE_ARGUMENTS_NEEDS_TO_HAVE_AN_UNDEFINED_VARIABLE,
+        .line = line});
+}
+
+void OSF_RaiseException_UnknownEntitiesToCompare(int line, expr_t e1, expr_t e2)
+{
+    OSF_SetException((except_t){
+        .type = EXCEPT_UNKNOWN_ENTITIES_TO_COMPARE,
+        .line = line,
+        .v.ce28 = {
+            .ent1 = e1,
+            .ent2 = e2}});
+}
+
+void OSF_RaiseException_EntityMustBeAString(int line, expr_t ent)
+{
+    OSF_SetException((except_t){
+        .type = EXCEPT_ENTITY_MUST_BE_A_STRING,
+        .line = line,
+        .v.ce29.ent = ent});
+}
+
+void OSF_RaiseException_InvalidIterator(int line)
+{
+    OSF_SetException((except_t){
+        .type = EXCEPT_INVALID_ITERATOR,
+        .line = line});
+}
+
+void OSF_RaiseException_NonDefaultArgFollowsADefaultArg(int line)
+{
+    OSF_SetException((except_t){
+        .type = EXCEPT_NON_DEFAULT_ARGUMENT_FOLLOWS_A_DEFAULT_ARG,
+        .line = line});
+}
+
+void OSF_RaiseException_NonDefaultArgFollowsVarArgs(int line)
+{
+    OSF_SetException((except_t){
+        .type = EXCEPT_NON_DEFAULT_ARGUMENT_FOLLOWS_VAR_ARGS,
+        .line = line});
 }

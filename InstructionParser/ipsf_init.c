@@ -37,7 +37,11 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                 .DType = {
                     .type = DATA_TYPE_NONE}}},
         .next = NULL,
-        .line = BODY(mod)->body->line};
+        .line = 0};
+
+    if (mod != NULL)
+        if (BODY(mod)->body != NULL)
+            RET->line = BODY(mod)->body->line;
 
     if (err != NULL)
         *err = IPSF_OK;
@@ -74,13 +78,7 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
 
             if (expr == NULL)
             {
-                OSF_SetException((except_t){
-                    .type = EXCEPT_VARIABLE_DOES_NOT_EXIST,
-                    .line = curr.line,
-                    .v.ce1 = {
-                        .m_ref = mod,
-                        .vname = curr.v.var_ref.name}});
-
+                OSF_RaiseException_VariableDoesNotExist(curr.line, mod, curr.v.var_ref.name);
                 goto __label_abrupt_end_IPSF_ExecIT_fromMod;
             }
 
@@ -415,8 +413,18 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
             {
                 class_t *_c_ref = _IPSF_GetClass_fromIntTuple(cond_red.v.constant.ClassObj.idx);
                 var_t *iter_conf = IPSF_GetVar_fromMod(_c_ref->mod, "operatorfor..in", NULL);
-                assert(iter_conf != NULL && SF_FMT("Error: Class object is not an iterable."));
-                assert(iter_conf->val.type == EXPR_TYPE_FUNCTION && SF_FMT("Error: `operator for..in' is not a function."));
+                if (iter_conf == NULL)
+                    OSF_RaiseException_ClassObjectIsNotAnIterable(curr.line, _c_ref);
+
+                if (OSF_GetExceptionState())
+                    goto __label_abrupt_end_IPSF_ExecIT_fromMod;
+
+                if (iter_conf->val.type != EXPR_TYPE_FUNCTION)
+                    OSF_RaiseException_EntityIsNotAFunction(curr.line, iter_conf);
+
+                if (OSF_GetExceptionState())
+                    goto __label_abrupt_end_IPSF_ExecIT_fromMod;
+
                 fun_t _get_iter = (*PSG_GetFunctions())[iter_conf->val.v.function_s.index];
 
                 expr_t *_itc_val = _IPSF_CallFunction(_get_iter, (expr_t *)(expr_t[]){cond_red}, 1, _c_ref->mod->parent);
@@ -427,15 +435,31 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                 while (!_IPSF_IsDataType_None(*_itc_val))
                 {
                     expr_t idx_val = *_itc_val;
-                    assert((
-                               idx_val.type == EXPR_TYPE_CONSTANT &&
-                               idx_val.v.constant.constant_type == CONSTANT_TYPE_CLASS_OBJECT) &&
-                           SF_FMT("Error: Iterative must be a class object."));
+
+                    if ((
+                            idx_val.type == EXPR_TYPE_CONSTANT &&
+                            idx_val.v.constant.constant_type == CONSTANT_TYPE_CLASS_OBJECT))
+                        ;
+                    else
+                        OSF_RaiseException_IterativeMustBeAClassObject(curr.line);
+
+                    if (OSF_GetExceptionState())
+                        goto __label_abrupt_end_IPSF_ExecIT_fromMod;
 
                     class_t *c_get = _IPSF_GetClass_fromIntTuple(idx_val.v.constant.ClassObj.idx);
                     var_t *get_iter_repr = IPSF_GetVar_fromMod(c_get->mod, "__iter_repr__", NULL);
-                    assert(get_iter_repr != NULL && SF_FMT("Error: Class object is not an iterative."));
-                    assert(get_iter_repr->val.type == EXPR_TYPE_FUNCTION && SF_FMT("Error: `__iter_repr__' is not a function."));
+                    if (get_iter_repr == NULL)
+                        OSF_RaiseException_ClassObjectIsNotAnIterative(curr.line, c_get);
+
+                    if (OSF_GetExceptionState())
+                        goto __label_abrupt_end_IPSF_ExecIT_fromMod;
+
+                    if (get_iter_repr->val.type != EXPR_TYPE_FUNCTION)
+                        OSF_RaiseException_EntityIsNotAFunction(curr.line, get_iter_repr);
+
+                    if (OSF_GetExceptionState())
+                        goto __label_abrupt_end_IPSF_ExecIT_fromMod;
+
                     fun_t _get_iter_repr = (*PSG_GetFunctions())[get_iter_repr->val.v.function_s.index];
 
                     expr_t *idx_v_dy = _IPSF_CallFunction(_get_iter_repr, (expr_t *)(expr_t[]){idx_val}, 1, c_get->mod->parent);
@@ -549,6 +573,9 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
 
                     OSF_Free(_itc_val);
                     _itc_val = _IPSF_CallFunction(_get_iter, (expr_t *)(expr_t[]){cond_red}, 1, _c_ref->mod->parent);
+
+                    if (OSF_GetExceptionState())
+                        goto __label_abrupt_end_IPSF_ExecIT_fromMod;
                 }
 
                 OSF_Free(_itc_val);
@@ -561,9 +588,11 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                 if (!dc->evaluated)
                     IPSF_ReduceExpr_toConstant(mod, cond_red);
 
-                assert(
-                    curr.v.for_stmt.var_size <= 2 &&
-                    SF_FMT("Error: Dictionary iteration allows a maximum of 2 substitution variables."));
+                if (curr.v.for_stmt.var_size > 2)
+                    OSF_RaiseException_DictIterationAllowsMax2SubstitutionVars(curr.line, curr.v.for_stmt.var_size);
+
+                if (OSF_GetExceptionState())
+                    goto __label_abrupt_end_IPSF_ExecIT_fromMod;
 
                 for (size_t j = 0; j < dc->len; j++)
                 {
@@ -648,9 +677,14 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
             if (OSF_GetExceptionState())
                 goto __label_abrupt_end_IPSF_ExecIT_fromMod;
 
-            assert((cond_tok.type == EXPR_TYPE_CONSTANT &&
-                    cond_tok.v.constant.constant_type == CONSTANT_TYPE_INT) &&
-                   SF_FMT("Error: Iteration count must be an integer."));
+            if ((cond_tok.type == EXPR_TYPE_CONSTANT &&
+                 cond_tok.v.constant.constant_type == CONSTANT_TYPE_INT))
+                ;
+            else
+                OSF_RaiseException_IterationCountMustBeAnInteger(curr.line);
+
+            if (OSF_GetExceptionState())
+                goto __label_abrupt_end_IPSF_ExecIT_fromMod;
 
             int cond_iters = cond_tok.v.constant.Int.value;
 
@@ -694,7 +728,7 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
             _fdef.v.Coded.body_size = curr.v.function_decl.body_size;
             _fdef.parent = mod;
 
-            if (curr.v.function_decl.takes_var_args)
+            if (curr.v.function_decl.takes_var_args) // Higher precedence
                 _fdef.arg_acceptance_count = -1;
             else if (curr.v.function_decl.takes_def_args)
                 _fdef.arg_acceptance_count = -2;
@@ -777,7 +811,11 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
         break;
         case STATEMENT_TYPE_RETURN:
         {
-            assert(mod->type == MODULE_TYPE_FUNCTION && SF_FMT("Error: `return' called outside function."));
+            if (mod->type != MODULE_TYPE_FUNCTION)
+                OSF_RaiseException_ReturnCalledOutsideFunction(curr.line);
+
+            if (OSF_GetExceptionState())
+                goto __label_abrupt_end_IPSF_ExecIT_fromMod;
 
             if (mod->returns == NULL)
                 mod->returns = OSF_Malloc(sizeof(expr_t));
@@ -810,6 +848,9 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
             int _err;
             OSF_Free(IPSF_ExecIT_fromMod(imod, &_err));
 
+            if (OSF_GetExceptionState())
+                goto __label_abrupt_end_IPSF_ExecIT_fromMod;
+
             OSF_SetFileData(pres_fd);
             OSF_SetFileName(fn);
 
@@ -818,7 +859,11 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
             if (dump_import)
             {
                 int md_idx = PSG_AddModule(imod);
-                assert(curr.v.import_s.alias != NULL && SF_FMT("Error: Imports must have an alias"));
+                if (curr.v.import_s.alias == NULL)
+                    OSF_RaiseException_ImportMustHaveAnAlias(curr.line);
+
+                if (OSF_GetExceptionState())
+                    goto __label_abrupt_end_IPSF_ExecIT_fromMod;
 
                 const char *varname = (const char *)curr.v.import_s.alias;
 
@@ -833,7 +878,7 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                 {
                     int carry_on = 1;
 
-                    if (_IPSF_IsDataType_Void(*(curr.v.import_s.args)))
+                    if (_IPSF_IsDataType_Void(*(curr.v.import_s.args))) // from <...> import *
                     {
                         for (size_t j = 0; j < imod->var_holds_size; j++)
                             _IPSF_AddVar_toModule(mod, imod->var_holds[j].name, imod->var_holds[j].val);
@@ -849,13 +894,7 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
 
                             if (g_v == NULL)
                             {
-                                OSF_SetException((except_t){
-                                    .type = EXCEPT_VARIABLE_DOES_NOT_EXIST,
-                                    .line = curr.line,
-                                    .v.ce1 = {
-                                        .m_ref = imod,
-                                        .vname = curr.v.import_s.args[j].v.variable.name}});
-
+                                OSF_RaiseException_VariableDoesNotExist(curr.line, imod, curr.v.import_s.args[j].v.variable.name);
                                 goto __label_abrupt_end_IPSF_ExecIT_fromMod;
                             }
 
@@ -888,13 +927,7 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
 
                             if (g_v == NULL)
                             {
-                                OSF_SetException((except_t){
-                                    .type = EXCEPT_VARIABLE_DOES_NOT_EXIST,
-                                    .line = curr.line,
-                                    .v.ce1 = {
-                                        .m_ref = imod,
-                                        .vname = curr.v.import_s.args[j].v.variable.name}});
-
+                                OSF_RaiseException_VariableDoesNotExist(curr.line, imod, curr.v.import_s.args[j].v.variable.name);
                                 goto __label_abrupt_end_IPSF_ExecIT_fromMod;
                             }
 
@@ -932,7 +965,12 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                 // PSG_PrintExprType(curr_case_red.type);
                 if (!curr.v.switch_case.cases[j].is_case_in)
                 {
-                    if (_PSF_EntityIsTrue(_IPSF_ExecLogicalArithmetic(red_cond, LOGICAL_OP_EQEQ, curr_case_red)))
+                    expr_t _v = _IPSF_ExecLogicalArithmetic(red_cond, LOGICAL_OP_EQEQ, curr_case_red);
+
+                    if (OSF_GetExceptionState())
+                        goto __label_abrupt_end_IPSF_ExecIT_fromMod;
+
+                    if (_PSF_EntityIsTrue(_v))
                     {
                         // mod_t *m = SF_CreateModule(mod->type, NULL);
                         // m->parent = mod;
@@ -951,6 +989,9 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
 
                         OSF_Free(IPSF_ExecIT_fromMod(mod, NULL));
 
+                        if (OSF_GetExceptionState())
+                            goto __label_abrupt_end_IPSF_ExecIT_fromMod;
+
                         mod->type = pres_type;
                         mod->ast = pres_ast;
                         BODY(mod)->body = pres_body;
@@ -962,6 +1003,8 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                 }
                 else
                 {
+                    if (OSF_GetExceptionState())
+                        goto __label_abrupt_end_IPSF_ExecIT_fromMod;
                     if (_PSF_EntityIsTrue(curr_case_red))
                     {
                         // mod_t *m = SF_CreateModule(mod->type, NULL);
@@ -980,6 +1023,9 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                         BODY(mod)->body_size = curr.v.switch_case.cases[j].body_size;
 
                         OSF_Free(IPSF_ExecIT_fromMod(mod, NULL));
+
+                        if (OSF_GetExceptionState())
+                            goto __label_abrupt_end_IPSF_ExecIT_fromMod;
 
                         mod->type = pres_type;
                         mod->ast = pres_ast;
@@ -1014,6 +1060,9 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
 
                     OSF_Free(IPSF_ExecIT_fromMod(mod, NULL));
 
+                    if (OSF_GetExceptionState())
+                        goto __label_abrupt_end_IPSF_ExecIT_fromMod;
+
                     mod->type = pres_type;
                     mod->ast = pres_ast;
                     BODY(mod)->body = pres_body;
@@ -1039,6 +1088,8 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                 if (curr.v.assert_stmt.message != NULL)
                 {
                     expr_t _m_red = IPSF_ReduceExpr_toConstant(mod, *(curr.v.assert_stmt.message));
+                    if (OSF_GetExceptionState())
+                        goto __label_abrupt_end_IPSF_ExecIT_fromMod;
                     exc.v.ce11.msg = OSF_strdup(_IPSF_ObjectRepr(_m_red, 0));
                 }
 
@@ -1343,14 +1394,28 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
             mod_t *pres_mref_p = m_ref->parent;
 
             var_t *get_main = IPSF_GetVar_fromMod(m_ref, "__main__", NULL);
-            assert(get_main != NULL && SF_FMT("Error: Module has no constructor."));
-            assert(get_main->val.type == EXPR_TYPE_FUNCTION && SF_FMT("Error: Module constructor is not a function."));
+            if (get_main == NULL)
+                OSF_RaiseException_ModuleHasNoConstructor(expr->line, m_ref);
+
+            if (OSF_GetExceptionState())
+                goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
+
+            if (get_main->val.type != EXPR_TYPE_FUNCTION)
+                OSF_RaiseException_ModuleConstructorIsNotAFunction(expr->line, get_main);
+
+            if (OSF_GetExceptionState())
+                goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
 
             m_ref->parent = mod;
 
             for (size_t j = 0; j < expr->v.function_call.arg_size; j++)
             {
-                assert(expr->v.function_call.args[j].type != EXPR_TYPE_INLINE_ASSIGNMENT && SF_FMT("Error: Inline assignment is not allowed in module constructors."));
+                if (expr->v.function_call.args[j].type == EXPR_TYPE_INLINE_ASSIGNMENT)
+                    OSF_RaiseException_InlineAssignmentIsNotAllowedInModuleConstructors(expr->line);
+
+                if (OSF_GetExceptionState())
+                    goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
+
                 expr_t rd = IPSF_ReduceExpr_toConstant(mod, expr->v.function_call.args[j]);
 
                 if (OSF_GetExceptionState())
@@ -1392,13 +1457,7 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
 
         if (pvv == NULL)
         {
-            OSF_SetException((except_t){
-                .type = EXCEPT_VARIABLE_DOES_NOT_EXIST,
-                .line = expr->line,
-                .v.ce1 = {
-                    .m_ref = mod,
-                    .vname = expr->v.variable.name}});
-
+            OSF_RaiseException_VariableDoesNotExist(expr->line, mod, expr->v.variable.name);
             goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
         }
 
@@ -1416,13 +1475,7 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
 
             if (lhs_val == NULL)
             {
-                OSF_SetException((except_t){
-                    .type = EXCEPT_VARIABLE_DOES_NOT_EXIST,
-                    .line = expr->line,
-                    .v.ce1 = {
-                        .m_ref = mod,
-                        .vname = lhs->v.variable.name}});
-
+                OSF_RaiseException_VariableDoesNotExist(expr->line, mod, lhs->v.variable.name);
                 goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
             }
 
@@ -1430,6 +1483,7 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
 
             if (OSF_GetExceptionState())
                 goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
+
             *RES = (expr_t){
                 .type = EXPR_TYPE_CONSTANT,
                 .v = {
@@ -1478,10 +1532,15 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
 
             if (OSF_GetExceptionState())
                 goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
-            assert(
-                (_step_red.type == EXPR_TYPE_CONSTANT &&
-                 _step_red.v.constant.constant_type == CONSTANT_TYPE_INT) &&
-                SF_FMT("Error: step count must be an integer"));
+
+            if ((_step_red.type == EXPR_TYPE_CONSTANT &&
+                 _step_red.v.constant.constant_type == CONSTANT_TYPE_INT))
+                ;
+            else
+                OSF_RaiseException_StepCountMustBeAnInteger(expr->line, _step_red);
+
+            if (OSF_GetExceptionState())
+                goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
 
             step_count = _step_red.v.constant.Int.value;
         }
@@ -1492,13 +1551,17 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
         if (OSF_GetExceptionState())
             goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
 
-        assert(
-            ((
+        if (((
                  lhs_red.type == EXPR_TYPE_CONSTANT &&
                  lhs_red.v.constant.constant_type == CONSTANT_TYPE_INT) &&
              (rhs_red.type == EXPR_TYPE_CONSTANT &&
-              rhs_red.v.constant.constant_type == CONSTANT_TYPE_INT) &&
-             SF_FMT("Error: Entities for to..step clause must be integers")));
+              rhs_red.v.constant.constant_type == CONSTANT_TYPE_INT)))
+            ;
+        else
+            OSF_RaiseException_ToStepEntitiesMustBeAnInteger(expr->line, lhs_red, rhs_red);
+
+        if (OSF_GetExceptionState())
+            goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
 
         for (int j = lhs_red.v.constant.Int.value;
              j < rhs_red.v.constant.Int.value;
@@ -1565,13 +1628,17 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
             class_t *cobj = _IPSF_GetClass_fromIntTuple(_entity_red.v.constant.ClassObj.idx);
             var_t *get_operator_index = IPSF_GetVar_fromMod(cobj->mod, "operator[]", NULL);
 
-            assert(
-                get_operator_index != NULL &&
-                SF_FMT("Error: Class object cannot be indexed"));
+            if (get_operator_index == NULL)
+                OSF_RaiseException_ClassObjectCannotBeIndexed(expr->line, cobj);
 
-            assert(
-                get_operator_index->val.type == EXPR_TYPE_FUNCTION &&
-                SF_FMT("Error: `operator[]' must be a function"));
+            if (OSF_GetExceptionState())
+                goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
+
+            if (get_operator_index->val.type != EXPR_TYPE_FUNCTION)
+                OSF_RaiseException_EntityIsNotAFunction(expr->line, get_operator_index);
+
+            if (OSF_GetExceptionState())
+                goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
 
             fun_t _f = (*PSG_GetFunctions())[get_operator_index->val.v.function_s.index];
             expr_t *_f_res = _IPSF_CallFunction(_f, (expr_t *)(expr_t[]){_entity_red, _index_red}, 2, cobj->mod->parent);
@@ -1716,23 +1783,52 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
         {
             class_t *_c_ref = _IPSF_GetClass_fromIntTuple(cond_red.v.constant.ClassObj.idx);
             var_t *iter_conf = IPSF_GetVar_fromMod(_c_ref->mod, "operatorfor..in", NULL);
-            assert(iter_conf != NULL && SF_FMT("Error: Class object is not an iterable."));
-            assert(iter_conf->val.type == EXPR_TYPE_FUNCTION && SF_FMT("Error: `operator for..in' is not a function."));
+            if (iter_conf == NULL)
+                OSF_RaiseException_ClassObjectIsNotAnIterable(expr->line, _c_ref);
+
+            if (OSF_GetExceptionState())
+                goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
+
+            if (iter_conf->val.type != EXPR_TYPE_FUNCTION)
+                OSF_RaiseException_EntityIsNotAFunction(expr->line, iter_conf);
+
+            if (OSF_GetExceptionState())
+                goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
+
             fun_t _get_iter = (*PSG_GetFunctions())[iter_conf->val.v.function_s.index];
 
             expr_t *_itc_val = _IPSF_CallFunction(_get_iter, (expr_t *)(expr_t[]){cond_red}, 1, _c_ref->mod->parent);
+
+            if (OSF_GetExceptionState())
+                goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
+
             while (!_IPSF_IsDataType_None(*_itc_val))
             {
                 expr_t idx_val = *_itc_val;
-                assert((
-                           idx_val.type == EXPR_TYPE_CONSTANT &&
-                           idx_val.v.constant.constant_type == CONSTANT_TYPE_CLASS_OBJECT) &&
-                       SF_FMT("Error: Iterative must be a class object."));
+                if ((
+                        idx_val.type == EXPR_TYPE_CONSTANT &&
+                        idx_val.v.constant.constant_type == CONSTANT_TYPE_CLASS_OBJECT))
+                    ;
+                else
+                    OSF_RaiseException_IterativeMustBeAClassObject(expr->line);
+
+                if (OSF_GetExceptionState())
+                    goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
 
                 class_t *c_get = _IPSF_GetClass_fromIntTuple(idx_val.v.constant.ClassObj.idx);
                 var_t *get_iter_repr = IPSF_GetVar_fromMod(c_get->mod, "__iter_repr__", NULL);
-                assert(get_iter_repr != NULL && SF_FMT("Error: Class object is not an iterative."));
-                assert(get_iter_repr->val.type == EXPR_TYPE_FUNCTION && SF_FMT("Error: `__iter_repr__' is not a function."));
+                if (get_iter_repr == NULL)
+                    OSF_RaiseException_ClassObjectIsNotAnIterative(expr->line, c_get);
+
+                if (OSF_GetExceptionState())
+                    goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
+
+                if (get_iter_repr->val.type != EXPR_TYPE_FUNCTION)
+                    OSF_RaiseException_EntityIsNotAFunction(expr->line, get_iter_repr);
+
+                if (OSF_GetExceptionState())
+                    goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
+
                 fun_t _get_iter_repr = (*PSG_GetFunctions())[get_iter_repr->val.v.function_s.index];
 
                 expr_t *idx_v_dy = _IPSF_CallFunction(_get_iter_repr, (expr_t *)(expr_t[]){idx_val}, 1, c_get->mod->parent);
@@ -1927,11 +2023,15 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
         res.v.constant.constant_type = CONSTANT_TYPE_ARRAY;
         res.v.constant.Array.index = PSG_AddArray(Sf_Array_New());
 
-        assert(
-            (
+        if ((
                 cond.type == EXPR_TYPE_CONSTANT &&
-                cond.v.constant.constant_type == CONSTANT_TYPE_INT) &&
-            SF_FMT("Error: Iteration count must be an integer."));
+                cond.v.constant.constant_type == CONSTANT_TYPE_INT))
+            ;
+        else
+            OSF_RaiseException_IterationCountMustBeAnInteger(expr->line);
+
+        if (OSF_GetExceptionState())
+            goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
 
         int cond_iter = cond.v.constant.Int.value;
 
@@ -1955,6 +2055,9 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
     {
         expr_t _res = _IPSF_ExecUnaryArithmetic(mod, expr);
 
+        if (OSF_GetExceptionState())
+            goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
+
         *RES = _res;
     }
     break;
@@ -1973,7 +2076,11 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
             int ef = IPSF_OK;
             var_t *_v_ref = IPSF_GetVar_fromMod((*PSG_GetClasses())[_red.v.class_expr.index].mod, expr->v.member_access.child, &ef);
 
-            assert(ef != IPSF_ERR_VAR_NOT_FOUND && SF_FMT("Error: Object has no member %s."));
+            if (ef == IPSF_ERR_VAR_NOT_FOUND)
+                OSF_RaiseException_ObjectHasNoMember(expr->line, _red, expr->v.member_access.child);
+
+            if (OSF_GetExceptionState())
+                goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
             _res = _v_ref->val;
         }
         break;
@@ -1988,7 +2095,12 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
                 var_t *_v_ref = IPSF_GetVar_fromMod(__c->mod, expr->v.member_access.child, &ef);
                 __c->mod->parent = _pres_c_mod_parent;
 
-                assert(ef != IPSF_ERR_VAR_NOT_FOUND && SF_FMT("Error: Object has no member %s."));
+                if (ef == IPSF_ERR_VAR_NOT_FOUND)
+                    OSF_RaiseException_ObjectHasNoMember(expr->line, _red, expr->v.member_access.child);
+
+                if (OSF_GetExceptionState())
+                    goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
+
                 _res = _v_ref->val;
                 _res.next = OSF_Malloc(sizeof(expr_t));
                 *(_res.next) = _red;
@@ -2030,8 +2142,10 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
                 }
 
                 if (gv == NULL)
-                    printf("varname[%s]\n", expr->v.member_access.child);
-                assert(gv != NULL && SF_FMT("Error: Object has no member '%s'."));
+                    OSF_RaiseException_ObjectHasNoMember(expr->line, _red, expr->v.member_access.child);
+
+                if (OSF_GetExceptionState())
+                    goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
 
                 _res = gv->val;
                 _res.next = OSF_Malloc(sizeof(expr_t));
@@ -2045,7 +2159,12 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
             mod_t *gm = PSG_GetModule(_red.v.module_s.index);
             var_t *gv = IPSF_GetVar_fromMod(gm, expr->v.member_access.child, NULL);
 
-            assert(gv != NULL && SF_FMT("Error: Module has no member '%s'."));
+            if (gv == NULL)
+                OSF_RaiseException_ModuleHasNoMember(expr->line, gm, expr->v.member_access.child);
+
+            if (OSF_GetExceptionState())
+                goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
+
             _res = gv->val;
             _res.next = OSF_Malloc(sizeof(expr_t));
             *(_res.next) = _red;
@@ -2054,7 +2173,8 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
         default:
         _label_mem_access_fallback:
             // PSG_PrintExprType(_red.type);
-            assert(0 && SF_FMT("Cannot overload `.' on %s."));
+            OSF_RaiseException_CannotOverloadDotOnEntity(expr->line, _red);
+            goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
             break;
         }
 
@@ -2239,11 +2359,18 @@ IPSF_ExecVarDecl_fromStmt(mod_t *mod, stmt_t stmt, int *err)
             case CONSTANT_TYPE_ARRAY:
             {
                 array_t *_a_ref = PSG_GetArray_Ptr(ent_red.v.constant.Array.index);
-                assert(((
-                            idx_red.type == EXPR_TYPE_CONSTANT &&
-                            idx_red.v.constant.constant_type == CONSTANT_TYPE_INT) ||
-                        _IPSF_IsDataType_None(idx_red)) &&
-                       SF_FMT("Error: Array index must be an intger"));
+
+                if (((
+                         idx_red.type == EXPR_TYPE_CONSTANT &&
+                         idx_red.v.constant.constant_type == CONSTANT_TYPE_INT) ||
+                     _IPSF_IsDataType_None(idx_red)))
+                    ;
+                else
+                {
+                    OSF_RaiseException_ArrayIndexMustBeAnInteger(stmt.line, idx_red);
+                    mod->parent = pres;
+                    return NULL;
+                }
 
                 if (_IPSF_IsDataType_None(idx_red))
                 {
@@ -2255,17 +2382,9 @@ IPSF_ExecVarDecl_fromStmt(mod_t *mod, stmt_t stmt, int *err)
                 else
                 {
                     int idx = idx_red.v.constant.Int.value;
-                    assert(idx < _a_ref->len && SF_FMT("Error: Array index out of range."));
-
                     if (idx >= _a_ref->len)
                     {
-                        OSF_SetException((except_t){
-                            .type = EXCEPT_INDEX_OUT_OF_RANGE,
-                            .line = stmt.line,
-                            .v.ce0 = {
-                                .idx = idx,
-                                .targ = *_a_ref}});
-
+                        OSF_RaiseException_IndexOutOfRange(stmt.line, idx, *_a_ref);
                         mod->parent = pres;
                         return NULL;
                     }
@@ -2513,6 +2632,10 @@ char *_IPSF_ObjectRepr(expr_t expr, int recur)
             else
             {
                 expr_t *__r = _IPSF_CallFunction((*PSG_GetFunctions())[IPSF_GetVar_fromMod(g_c.mod, "__str__", NULL)->val.v.function_s.index], (expr_t *)(expr_t[]){expr}, 1, g_c.mod->parent);
+
+                if (OSF_GetExceptionState())
+                    return NULL;
+
                 _Res = _IPSF_ObjectRepr(*__r, 0);
                 OSF_Free(__r);
             }
@@ -2629,11 +2752,18 @@ expr_t _IPSF_ExecUnaryArithmetic(mod_t *mod, expr_t *expr)
 
                     expr_t *m_ref = &(sibs[idx_to_modify]);
 
-                    assert((
-                               m_ref->type == EXPR_TYPE_CONSTANT &&
-                               (m_ref->v.constant.constant_type == CONSTANT_TYPE_INT ||
-                                m_ref->v.constant.constant_type == CONSTANT_TYPE_FLOAT)) &&
-                           SF_FMT("Error: Cannot use unary `-' on a non-number entity."));
+                    if ((
+                            m_ref->type == EXPR_TYPE_CONSTANT &&
+                            (m_ref->v.constant.constant_type == CONSTANT_TYPE_INT ||
+                             m_ref->v.constant.constant_type == CONSTANT_TYPE_FLOAT)))
+                        ;
+                    else
+                        OSF_RaiseException_CannotUseUnaryMinusOnNonNumberEntity(expr->line, *m_ref);
+
+                    if (OSF_GetExceptionState())
+                    {
+                        return (expr_t){};
+                    }
 
                     if (m_ref->v.constant.constant_type == CONSTANT_TYPE_INT)
                         m_ref->v.constant.Int.value = -m_ref->v.constant.Int.value;
@@ -2648,11 +2778,18 @@ expr_t _IPSF_ExecUnaryArithmetic(mod_t *mod, expr_t *expr)
 
                     expr_t *m_ref = &(sibs[idx_to_modify]);
 
-                    assert((
-                               m_ref->type == EXPR_TYPE_CONSTANT &&
-                               (m_ref->v.constant.constant_type == CONSTANT_TYPE_INT ||
-                                m_ref->v.constant.constant_type == CONSTANT_TYPE_FLOAT)) &&
-                           SF_FMT("Error: Cannot use unary `-' on a non-number entity."));
+                    if ((
+                            m_ref->type == EXPR_TYPE_CONSTANT &&
+                            (m_ref->v.constant.constant_type == CONSTANT_TYPE_INT ||
+                             m_ref->v.constant.constant_type == CONSTANT_TYPE_FLOAT)))
+                        ;
+                    else
+                        OSF_RaiseException_CannotUseUnaryMinusOnNonNumberEntity(expr->line, *m_ref);
+
+                    if (OSF_GetExceptionState())
+                    {
+                        return (expr_t){};
+                    }
 
                     if (m_ref->v.constant.constant_type == CONSTANT_TYPE_INT)
                         m_ref->v.constant.Int.value = -m_ref->v.constant.Int.value;
@@ -3103,9 +3240,12 @@ expr_t _IPSF_ExecUnaryArithmetic(mod_t *mod, expr_t *expr)
                 break;
                 case -1:
                 default:
-                    assert(0 && SF_FMT("Error: Invalid operator usage: `+'."));
+                    OSF_RaiseException_InvalidUsageOfOpPlus(expr->line);
                     break;
                 }
+
+                if (OSF_GetExceptionState())
+                    return (expr_t){};
 
                 sibs[constant_count - 1] = r;
 
@@ -3230,9 +3370,20 @@ stmt_t *_SFPTR_StmtPtr(stmt_t stmt)
 expr_t *_IPSF_CallFunction(fun_t fun_s, expr_t *args, int arg_size, mod_t *mod)
 {
     expr_t *RES = OSF_Malloc(sizeof(expr_t));
+    *RES = (expr_t){
+        .type = EXPR_TYPE_CONSTANT,
+        .v.constant = {
+            .constant_type = CONSTANT_TYPE_DTYPE,
+            .DType.type = DATA_TYPE_NONE}};
 
     if (fun_s.arg_acceptance_count >= 0)
-        assert(arg_size == fun_s.arg_acceptance_count && SF_FMT("Error: Invalid number of arguments passed."));
+    {
+        if (arg_size != fun_s.arg_acceptance_count)
+        {
+            OSF_RaiseException_InvalidNumberOfArgsPassed(args != NULL ? args->line : 0, arg_size, fun_s.arg_acceptance_count);
+            return RES;
+        }
+    }
     else
     {
         switch (fun_s.arg_acceptance_count)
@@ -3244,11 +3395,15 @@ expr_t *_IPSF_CallFunction(fun_t fun_s, expr_t *args, int arg_size, mod_t *mod)
             for (size_t j = 0; j < fun_s.v.Coded.arg_size; j++)
                 if (_IPSF_IsDataType_Void(fun_s.v.Coded.args[j].val))
                     f_c++;
-            
-            assert(f_c <= arg_size && SF_FMT("Error: Invalid number of arguments passed."));
+
+            if (f_c > arg_size)
+            {
+                OSF_RaiseException_InvalidNumberOfArgsPassed(args != NULL ? args->line : 0, f_c, arg_size);
+                return RES;
+            }
         }
-            break;
-        
+        break;
+
         default:
             break;
         }
@@ -3316,7 +3471,7 @@ expr_t *_IPSF_CallFunction(fun_t fun_s, expr_t *args, int arg_size, mod_t *mod)
     }
 
     if (OSF_GetExceptionState())
-        return NULL;
+        return RES;;
 
     fun_mod->parent = fun_s.parent;
     _cargs_without_voids = _PSF_RemoveVoidsFromExprArray(_collectivise_args, _collectivise_args_count, &_cargs_without_voids_size);
@@ -3336,7 +3491,11 @@ expr_t *_IPSF_CallFunction(fun_t fun_s, expr_t *args, int arg_size, mod_t *mod)
             }
         }
 
-        assert(first_void_ref != NULL && SF_FMT("Error: Function with variable arguments needs to have an undefined variable"));
+        if (first_void_ref == NULL)
+        {
+            OSF_RaiseException_FunctionWithVaArgsNeedsToHaveAnUndefinedVariable(args != NULL ? args->line : 0);
+            return RES;
+        }
 
         (*first_void_ref).val = (expr_t){
             .type = EXPR_TYPE_CONSTANT,
@@ -3381,20 +3540,23 @@ expr_t *_IPSF_CallFunction(fun_t fun_s, expr_t *args, int arg_size, mod_t *mod)
     break;
     }
 
-    if (fun_s.parent != NULL)
-    {
-        for (size_t i = 0; i < fun_s.parent->var_holds_size; i++)
-        {
-            _IPSF_AddVar_toModule(
-                fun_mod,
-                fun_s.parent->var_holds[i].name,
-                fun_s.parent->var_holds[i].val);
-        }
-    }
+    // if (fun_s.parent != NULL)
+    // {
+    //     for (size_t i = 0; i < fun_s.parent->var_holds_size; i++)
+    //     {
+    //         _IPSF_AddVar_toModule(
+    //             fun_mod,
+    //             fun_s.parent->var_holds[i].name,
+    //             fun_s.parent->var_holds[i].val);
+    //     }
+    // }
 
     if (fun_s.is_native)
     {
         expr_t *res = fun_s.v.Native.f(fun_mod);
+
+        if (OSF_GetExceptionState())
+            return RES;
         expr_t temp = *res;
         *RES = temp;
         OSF_Free(res);
@@ -3405,6 +3567,9 @@ expr_t *_IPSF_CallFunction(fun_t fun_s, expr_t *args, int arg_size, mod_t *mod)
         BODY(fun_mod)->body_size = fun_s.v.Coded.body_size;
         BODY(fun_mod)->name = NULL;
         OSF_Free(IPSF_ExecIT_fromMod(fun_mod, NULL));
+
+        if (OSF_GetExceptionState())
+            return RES;
 
         if (fun_mod->returns == NULL)
         {
@@ -3539,7 +3704,7 @@ expr_t _IPSF_ExecLogicalArithmetic(expr_t _lhs, int op_ty, expr_t _rhs)
                         _res.v.constant.Bool.value = !strcmp(_lhs.v.constant.String.value, _rhs.v.constant.String.value);
                         break;
                     default:
-                        assert(0 && SF_FMT("Unknown entities to compare"));
+                        OSF_RaiseException_UnknownEntitiesToCompare(_lhs.line, _lhs, _rhs);
                         _res.v.constant.Bool.value = 0;
                         break;
                     }
@@ -3596,7 +3761,7 @@ expr_t _IPSF_ExecLogicalArithmetic(expr_t _lhs, int op_ty, expr_t _rhs)
                         _res.v.constant.Bool.value = !!strcmp(_lhs.v.constant.String.value, _rhs.v.constant.String.value);
                         break;
                     default:
-                        assert(0 && SF_FMT("Unknown entities to compare"));
+                        OSF_RaiseException_UnknownEntitiesToCompare(_lhs.line, _lhs, _rhs);
                         _res.v.constant.Bool.value = 1;
                         break;
                     }
@@ -3647,7 +3812,7 @@ expr_t _IPSF_ExecLogicalArithmetic(expr_t _lhs, int op_ty, expr_t _rhs)
                         _res.v.constant.Bool.value = strcmp(_lhs.v.constant.String.value, _rhs.v.constant.String.value) > 0;
                         break;
                     default:
-                        assert(0 && SF_FMT("Unknown entities to compare"));
+                        OSF_RaiseException_UnknownEntitiesToCompare(_lhs.line, _lhs, _rhs);
                         _res.v.constant.Bool.value = 1;
                         break;
                     }
@@ -3700,7 +3865,7 @@ expr_t _IPSF_ExecLogicalArithmetic(expr_t _lhs, int op_ty, expr_t _rhs)
                         _res.v.constant.Bool.value = strcmp(_lhs.v.constant.String.value, _rhs.v.constant.String.value) < 0;
                         break;
                     default:
-                        assert(0 && SF_FMT("Unknown entities to compare"));
+                        OSF_RaiseException_UnknownEntitiesToCompare(_lhs.line, _lhs, _rhs);
                         _res.v.constant.Bool.value = 1;
                         break;
                     }
@@ -3777,10 +3942,11 @@ expr_t _IPSF_Entity_IsIn_Entity(expr_t lhs, expr_t rhs, mod_t *mod)
         break;
         case CONSTANT_TYPE_STRING:
         {
-            assert(
-                (lhs.type == EXPR_TYPE_CONSTANT &&
-                 lhs.v.constant.constant_type == CONSTANT_TYPE_STRING) &&
-                SF_FMT("Error: Entity must be string."));
+            if ((lhs.type == EXPR_TYPE_CONSTANT &&
+                 lhs.v.constant.constant_type == CONSTANT_TYPE_STRING))
+                ;
+            else
+                OSF_RaiseException_EntityMustBeAString(lhs.line, lhs);
 
             char *lhs_s = SF_STRING(lhs.v.constant.String.value),
                  *rhs_s = SF_STRING(rhs.v.constant.String.value);
@@ -3798,7 +3964,7 @@ expr_t _IPSF_Entity_IsIn_Entity(expr_t lhs, expr_t rhs, mod_t *mod)
 
     default:
     _entity_in_entity_fallback_label:
-        assert(0 && SF_FMT("Error: Invalid iterator."));
+        OSF_RaiseException_InvalidIterator(lhs.line);
         break;
     }
 
@@ -3818,4 +3984,48 @@ char *_IPSF_GetDir_FromFilePath(char *path)
             new_path++;
 
     return strrev(new_path);
+}
+
+void SF_Assert(int cond, char *msg, const char *fname)
+{
+    if (!strcmp(fname, "SF_CreateModule"))
+        if (!cond)
+            exit(printf("Error: seg_fault.\n"));
+        else
+            return;
+    
+    stmt_t nst;
+    nst.type = STATEMENT_TYPE_ASSERT;
+    nst.line = 0;
+    nst.v.assert_stmt.condition = OSF_Malloc(sizeof(expr_t));
+    *(nst.v.assert_stmt.condition) = (expr_t) {
+        .type = EXPR_TYPE_CONSTANT,
+        .line = 0,
+        .next = NULL,
+        .v.constant = {
+            .constant_type = CONSTANT_TYPE_BOOL,
+            .Bool.value = !!cond
+        }
+    };
+    nst.v.assert_stmt.message = NULL;
+    if (msg != NULL)
+    {
+        nst.v.assert_stmt.message = OSF_Malloc(sizeof(expr_t));
+        *(nst.v.assert_stmt.message) = (expr_t) {
+            .type = EXPR_TYPE_CONSTANT,
+            .line = 0,
+            .next = NULL,
+            .v.constant = {
+                .constant_type = CONSTANT_TYPE_STRING,
+                .String.value = msg
+            }
+        };
+    }
+
+    mod_t *m = SF_CreateModule(MODULE_TYPE_FILE, NULL);
+    BODY(m)->body_size = 1;
+    *(BODY(m)->body) = nst;
+    
+    OSF_Free(IPSF_ExecIT_fromMod(m, NULL));
+    OSF_Free(m);
 }

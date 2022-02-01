@@ -43,7 +43,7 @@ expr_t Sf_Array_Pop(array_t *arr, int index)
     if (index < 0)
         index += arr->len;
     
-    assert(index < arr->len && SF_FMT("Error: Index out of range."));
+    assert(index < arr->len && SF_FMT("Index out of range."));
     
     array_t *ar = Sf_Array_New_Ptr();
     expr_t pres = arr->vals[index];

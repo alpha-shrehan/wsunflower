@@ -145,7 +145,7 @@ Test.test(10)
 
 
 if (fun_s.arg_acceptance_count >= 0)
-                assert(expr->v.function_call.arg_size == fun_s.arg_acceptance_count && SF_FMT("Error: Invalid number of arguments passed."));
+                assert(expr->v.function_call.arg_size == fun_s.arg_acceptance_count && SF_FMT("Invalid number of arguments passed."));
 
             mod_t *fun_mod = SF_CreateModule(MODULE_TYPE_FUNCTION, NULL);
             OSF_Free(BODY(fun_mod)->body);
@@ -220,7 +220,7 @@ if (fun_s.arg_acceptance_count >= 0)
                     }
                 }
 
-                assert(first_void_ref != NULL && SF_FMT("Error: Function with variable arguments needs to have an undefined variable"));
+                assert(first_void_ref != NULL && SF_FMT("Function with variable arguments needs to have an undefined variable"));
 
                 (*first_void_ref).val = (expr_t){
                     .type = EXPR_TYPE_CONSTANT,
@@ -289,3 +289,50 @@ if (fun_s.arg_acceptance_count >= 0)
 
             OSF_Free(fun_mod->var_holds);
             OSF_Free(fun_mod);
+
+
+
+
+
+import iter
+
+class LinkedList
+    val = None
+    next = None
+    _iter_count = 0
+    len = 1
+    llist = None
+    _last_node = None
+
+    fun __main__(self, val = None, next = None)
+        self.val = val
+        self.next = next
+        self.llist = [self.val]
+    
+    fun add(self, val)
+        self.llist.push(val)
+        self.len = self.len + 1
+        if self._last_node == None
+            self.next = LinkedList(val)
+            self._last_node = self.next
+        else
+            self._last_node.next = LinkedList(val)
+            self._last_node = self._last_node.next
+    
+    fun height(self)
+        return self.len
+    
+    fun operator for..in(self)
+        curr_val = self._iter_count
+        self._iter_count = self._iter_count + 1
+        if self._iter_count > self.height()
+            self._iter_count = 0
+            return None
+        v = self.llist[curr_val]
+        return iter(v)
+
+
+    fun __str__(self)
+        return [self.val, self.next]
+    
+    __stdout__ = __str__

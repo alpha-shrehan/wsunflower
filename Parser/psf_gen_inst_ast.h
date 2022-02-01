@@ -931,3 +931,11 @@ void _PSF_ConstructIndividualKeyVal_forDict_fromByte(psf_byte_array_t *, expr_t 
  * @return expr_t 
  */
 expr_t _IPSF_ExecLogicalArithmetic(expr_t, int, expr_t);
+
+/**
+ * @brief Assertions in Sunflower style
+ * @param cond Condition
+ * @param msg Message
+ * @param fname Function name where assert was called
+ */
+void SF_Assert(int, char *, const char *);

@@ -7,16 +7,21 @@
 #define SFC_DEBUG       1
 #define SFC_RELEASE     2
 
-#if SFCONFIG == SFC_RELEASE
-#   ifdef assert
-#       undef assert
-#       define assert(X)
-#   endif
+// #if SFCONFIG == SFC_RELEASE
+// #   ifdef assert
+// #       undef assert
+// #       define assert(X)
+// #   endif
+// #endif
+
+#ifdef assert
+#undef assert
+#define assert(X) SF_Assert(X, __FUNCTION__)
 #endif
 
 #include <Object/osf_mem.h>
 
-#define SF_FMT(X) X
+#define SF_FMT(X) 1, "\'" X "\'"
 #define SF_STRING(X) _PSF_TrimSFStrImp(X)
 
 enum psf_gen_ast_nval_type_e

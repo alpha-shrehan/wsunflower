@@ -1,0 +1,29 @@
+import iter
+
+class range
+    _min = 0
+    _max = 0
+    _step = 0
+    _it_instance = 0
+
+    fun __main__(self, m = 0, mm = None, st = None)
+        if mm == None
+            self._max = m
+        else
+            self._min = m
+            self._max = mm
+        if st == None
+            self._step = 1
+        else
+            self._step = st
+        
+        self._it_instance = self._min
+    
+    fun operator for..in(self)
+        if self._it_instance > self._max - self._step
+            self._it_instance = self._min
+            return None
+        
+        val = self._it_instance
+        self._it_instance = self._it_instance + self._step
+        return iter(val)

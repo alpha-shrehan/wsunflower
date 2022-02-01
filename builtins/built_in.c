@@ -4,8 +4,15 @@
 expr_t *NativeFunctionWrite(mod_t *mod_ref)
 {
     expr_t *__res = OSF_Malloc(sizeof(expr_t));
+    *__res = (expr_t){
+        .type = EXPR_TYPE_CONSTANT,
+        .v.constant = {
+            .constant_type = CONSTANT_TYPE_DTYPE,
+            .DType = {
+                .type = DATA_TYPE_NONE}}};
+    
     var_t *args_v = IPSF_GetVar_fromMod(mod_ref, "args", NULL);
-    assert((args_v->val.type == EXPR_TYPE_CONSTANT && args_v->val.v.constant.constant_type == CONSTANT_TYPE_ARRAY) && SF_FMT("Error: `args' must be an array"));
+    assert((args_v->val.type == EXPR_TYPE_CONSTANT && args_v->val.v.constant.constant_type == CONSTANT_TYPE_ARRAY) && SF_FMT("`args' must be an array"));
     expr_t *args = ARRAY(args_v->val.v.constant.Array.index).vals;
     int arg_count = ARRAY(args_v->val.v.constant.Array.index).len;
 
@@ -59,7 +66,14 @@ expr_t *NativeFunctionWrite(mod_t *mod_ref)
                 {
                     expr_t *_v_res = _IPSF_CallFunction(_fun_exec, &(args[i]), 1, mod_ref);
 
+                    if (OSF_GetExceptionState())
+                        return __res;
+
                     char *x = _IPSF_ObjectRepr(*_v_res, 0);
+
+                    if (OSF_GetExceptionState())
+                        return __res;
+                    
                     printf("%s", x);
 
                     OSF_IntFree(x);
@@ -96,13 +110,6 @@ expr_t *NativeFunctionWrite(mod_t *mod_ref)
         printf("%s", x);
         OSF_IntFree(x);
     }
-
-    *__res = (expr_t){
-        .type = EXPR_TYPE_CONSTANT,
-        .v.constant = {
-            .constant_type = CONSTANT_TYPE_DTYPE,
-            .DType = {
-                .type = DATA_TYPE_NONE}}};
 
     return __res;
 }
@@ -189,7 +196,10 @@ expr_t *NativeFunctionInt(mod_t *_mod_ref)
     assert((
                args[0].type == EXPR_TYPE_CONSTANT &&
                args[0].v.constant.constant_type == CONSTANT_TYPE_STRING) &&
-           SF_FMT("Error: `num' must be a string"));
+           SF_FMT("`num' must be a string"));
+        
+    if (OSF_GetExceptionState())
+        return NULL;
 
     char *get_str = args[0].v.constant.String.value;
     get_str++;
@@ -217,7 +227,7 @@ expr_t *NativeFunctionEval(mod_t *mod_ref)
         (
             arg_icode->val.type == EXPR_TYPE_CONSTANT &&
             arg_icode->val.v.constant.constant_type == CONSTANT_TYPE_STRING) &&
-        SF_FMT("Error: eval(...) expects a string, got %s"));
+        SF_FMT("eval(...) expects a string, got %s"));
 
     expr_t ival = arg_icode->val;
     char *ival_str = ival.v.constant.String.value;
@@ -241,7 +251,7 @@ expr_t *NativeFunctionEval(mod_t *mod_ref)
     int err;
     __res = IPSF_ExecIT_fromMod(eval_mod, &err);
 
-    assert(err == IPSF_OK);
+    assert(err == IPSF_OK && SF_FMT(""));
 
     OSF_Free(mod_ref->var_holds);
     mod_ref->var_holds = mv_hold;
@@ -476,13 +486,13 @@ void SFBuiltIn_AddDefaultFunctions(mod_t *mod)
 expr_t *Native_Proto_Int__str__(mod_t *mod_ref)
 {
     var_t *v_Member = IPSF_GetVar_fromMod(mod_ref, "_Member", NULL);
-    assert(v_Member != NULL && SF_FMT("Error: seg_fault"));
+    assert(v_Member != NULL && SF_FMT("seg_fault"));
 
     expr_t vmem = v_Member->val;
     assert((
                vmem.type == EXPR_TYPE_CONSTANT &&
                vmem.v.constant.constant_type == CONSTANT_TYPE_INT) &&
-           SF_FMT("Error: seg_fault"));
+           SF_FMT("seg_fault"));
 
     char *orepr = _IPSF_ObjectRepr(vmem, 0);
     char *resorepr = OSF_Malloc((strlen(orepr) + 3) * sizeof(char));
@@ -504,14 +514,14 @@ expr_t *Native_Proto_Array_push(mod_t *mod_ref)
 {
     var_t *v_Member = IPSF_GetVar_fromMod(mod_ref, "_Member", NULL),
           *v_Data = IPSF_GetVar_fromMod(mod_ref, "data", NULL);
-    assert(v_Member != NULL && SF_FMT("Error: seg_fault"));
+    assert(v_Member != NULL && SF_FMT("seg_fault"));
 
     expr_t vmem = v_Member->val,
            vdata = v_Data->val;
     assert((
                vmem.type == EXPR_TYPE_CONSTANT &&
                vmem.v.constant.constant_type == CONSTANT_TYPE_ARRAY) &&
-           SF_FMT("Error: seg_fault"));
+           SF_FMT("seg_fault"));
 
     array_t *_a_ref = PSG_GetArray_Ptr(vmem.v.constant.Array.index);
     Sf_Array_Push(_a_ref, vdata);
@@ -532,19 +542,19 @@ expr_t *Native_Proto_Array_pop(mod_t *mod_ref)
 {
     var_t *v_Member = IPSF_GetVar_fromMod(mod_ref, "_Member", NULL),
           *v_Data = IPSF_GetVar_fromMod(mod_ref, "data", NULL);
-    assert(v_Member != NULL && SF_FMT("Error: seg_fault"));
+    assert(v_Member != NULL && SF_FMT("seg_fault"));
 
     expr_t vmem = v_Member->val,
            vdata = v_Data->val;
     assert((
                vmem.type == EXPR_TYPE_CONSTANT &&
                vmem.v.constant.constant_type == CONSTANT_TYPE_ARRAY) &&
-           SF_FMT("Error: seg_fault"));
+           SF_FMT("seg_fault"));
 
     assert((
                vdata.type == EXPR_TYPE_CONSTANT &&
                vdata.v.constant.constant_type == CONSTANT_TYPE_INT) &&
-           SF_FMT("Error: Index must be an integer."));
+           SF_FMT("Index must be an integer."));
 
     array_t *_a_ref = PSG_GetArray_Ptr(vmem.v.constant.Array.index);
 
@@ -557,13 +567,13 @@ expr_t *Native_Proto_Array_pop(mod_t *mod_ref)
 expr_t *Native_Proto_Array__str__(mod_t *mod_ref)
 {
     var_t *v_Member = IPSF_GetVar_fromMod(mod_ref, "_Member", NULL);
-    assert(v_Member != NULL && SF_FMT("Error: seg_fault"));
+    assert(v_Member != NULL && SF_FMT("seg_fault"));
 
     expr_t vmem = v_Member->val;
     assert((
                vmem.type == EXPR_TYPE_CONSTANT &&
                vmem.v.constant.constant_type == CONSTANT_TYPE_ARRAY) &&
-           SF_FMT("Error: seg_fault"));
+           SF_FMT("seg_fault"));
 
     char *orepr = _IPSF_ObjectRepr(vmem, 0);
     char *resorepr = OSF_Malloc((strlen(orepr) + 3) * sizeof(char));

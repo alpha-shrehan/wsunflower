@@ -25,7 +25,7 @@ mod_t *SF_CreateModule(enum ModuleTypeEnum mod_type, psf_byte_array_t *ast_ref)
 {
     mod_t *new_mod = (mod_t *)OSF_Malloc(sizeof(mod_t));
 
-    assert(new_mod != NULL);
+    assert(new_mod != NULL && SF_FMT(""));
 
     new_mod->parent = NULL;
     new_mod->type = mod_type;
@@ -241,7 +241,7 @@ expr_t SF_FrameExpr_fromByte(psf_byte_array_t *arr)
         break;
         case AST_NVAL_TYPE_IDENTIFIER:
         {
-            // assert(!curr.v.Identifier.is_token && SF_FMT("Error: Cannot create expression out of a token."));
+            // assert(!curr.v.Identifier.is_token && SF_FMT("Cannot create expression out of a token."));
 
             if (!curr.v.Identifier.is_token)
             {
@@ -312,7 +312,7 @@ expr_t SF_FrameExpr_fromByte(psf_byte_array_t *arr)
                 {
                     assert(
                         ret.type == EXPR_TYPE_TO_STEP_CLAUSE &&
-                        SF_FMT("Error: stray `step'"));
+                        SF_FMT("stray `step'"));
 
                     psf_byte_array_t *_val = _PSF_newByteArray();
 
@@ -435,10 +435,9 @@ expr_t SF_FrameExpr_fromByte(psf_byte_array_t *arr)
                     }
 
                     res.v.lambda_._vars = (void *)_vars;
-                    *(res.v.lambda_.body) = SF_FrameExpr_fromByte(&((psf_byte_array_t) {
+                    *(res.v.lambda_.body) = SF_FrameExpr_fromByte(&((psf_byte_array_t){
                         .nodes = arr->nodes + i + 1,
-                        .size = arr->size - i - 1
-                    }));
+                        .size = arr->size - i - 1}));
 
                     OSF_Free(_vars_arr->nodes);
                     OSF_Free(_vars_arr);
@@ -1015,7 +1014,7 @@ expr_t SF_FrameExpr_fromByte(psf_byte_array_t *arr)
 
                 assert(
                     arr->nodes[i + 1].nval_type == AST_NVAL_TYPE_IDENTIFIER &&
-                    SF_FMT("Error: Member access operator (.) requires member name to be an identifier."));
+                    SF_FMT("Member access operator (.) requires member name to be an identifier."));
 
                 ret.v.member_access.child = (char *)OSF_strdup(arr->nodes[i + 1].v.Identifier.val);
                 i++;
@@ -1666,7 +1665,7 @@ void SF_FrameIT_fromAST(mod_t *mod)
                 }
                 else if (!strcmp(tok, "else"))
                 {
-                    assert(BODY(mod)->body[BODY(mod)->body_size - 1].type == STATEMENT_TYPE_IF && SF_FMT("Error: Stray clause"));
+                    assert(BODY(mod)->body[BODY(mod)->body_size - 1].type == STATEMENT_TYPE_IF && SF_FMT("Stray clause"));
                     if (mod->ast->nodes[i + 1].nval_type == AST_NVAL_TYPE_IDENTIFIER &&
                         !strcmp(mod->ast->nodes[i + 1].v.Identifier.val, "if"))
                     {
@@ -3053,6 +3052,7 @@ stmt_t _PSF_ConstructFunctionStmt(psf_byte_array_t *arr, int idx, int *bd_sz_ptr
         while (idx < arr->size)
         {
             psf_byte_t c = arr->nodes[idx];
+            int skip_void_check = 0;
 
             if (c.nval_type == AST_NVAL_TYPE_OPERATOR)
             {
@@ -3068,9 +3068,27 @@ stmt_t _PSF_ConstructFunctionStmt(psf_byte_array_t *arr, int idx, int *bd_sz_ptr
                         else
                             assert(
                                 (Sf_Byte_in_Arr(args, (psf_byte_t){.nval_type = AST_NVAL_TYPE_OPERATOR, .v.Operator.val = "="})) &&
-                                SF_FMT("Error: Non default argument follows a default one."));
+                                SF_FMT("Non default argument follows a default one."));
+
+                        if (args->size > 2)
+                            if (args->nodes[args->size - 2].nval_type == AST_NVAL_TYPE_OPERATOR &&
+                                !strcmp(args->nodes[args->size - 2].v.Operator.val, "[") &&
+                                args->nodes[args->size - 1].nval_type == AST_NVAL_TYPE_OPERATOR &&
+                                !strcmp(args->nodes[args->size - 1].v.Operator.val, "]"))
+                            {
+                                takes_var_params = 1;
+                                args->size -= 2;
+                                skip_void_check = 1;
+                            }
 
                         var_t _Gv = _PSF_GenerateVarFromByte(args);
+
+                        if (!skip_void_check)
+                            if (_Gv.val.type == EXPR_TYPE_CONSTANT &&
+                                _Gv.val.v.constant.constant_type == CONSTANT_TYPE_DTYPE &&
+                                _Gv.val.v.constant.DType.type == DATA_TYPE_VOID &&
+                                takes_var_params)
+                                assert(0 && SF_FMT("Non-default argument follows variable arguments."));
 
                         if (result.v.function_decl.arg_size)
                             result.v.function_decl.args = OSF_Realloc(result.v.function_decl.args, (result.v.function_decl.arg_size + 1) * sizeof(var_t));
@@ -3102,9 +3120,27 @@ stmt_t _PSF_ConstructFunctionStmt(psf_byte_array_t *arr, int idx, int *bd_sz_ptr
                     else
                         assert(
                             (Sf_Byte_in_Arr(args, (psf_byte_t){.nval_type = AST_NVAL_TYPE_OPERATOR, .v.Operator.val = "="})) &&
-                            SF_FMT("Error: Non default argument follows a default one."));
+                            SF_FMT("Non default argument follows a default one."));
 
+                    if (args->size > 2)
+                            if (args->nodes[args->size - 2].nval_type == AST_NVAL_TYPE_OPERATOR &&
+                                !strcmp(args->nodes[args->size - 2].v.Operator.val, "[") &&
+                                args->nodes[args->size - 1].nval_type == AST_NVAL_TYPE_OPERATOR &&
+                                !strcmp(args->nodes[args->size - 1].v.Operator.val, "]"))
+                            {
+                                takes_var_params = 1;
+                                args->size -= 2;
+                                skip_void_check = 1;
+                            }
+                    
                     var_t _Gv = _PSF_GenerateVarFromByte(args);
+
+                    if (!skip_void_check)
+                        if (_Gv.val.type == EXPR_TYPE_CONSTANT &&
+                            _Gv.val.v.constant.constant_type == CONSTANT_TYPE_DTYPE &&
+                            _Gv.val.v.constant.DType.type == DATA_TYPE_VOID &&
+                            takes_var_params)
+                            assert(0 && SF_FMT("Non-default argument follows variable arguments."));
 
                     if (result.v.function_decl.arg_size)
                         result.v.function_decl.args = OSF_Realloc(result.v.function_decl.args, (result.v.function_decl.arg_size + 1) * sizeof(var_t));
@@ -3726,7 +3762,7 @@ stmt_t _PSF_ConstructImportLine(mod_t *mod, int idx)
         ret.v.import_s.path = OSF_strdup(name_path);
         OSF_Free(name_path);
 
-        if (name_arr->size == 1 && ret.v.import_s.alias == NULL)
+        if (name_arr->size == 1 && ret.v.import_s.alias == NULL && !ret.v.import_s.arg_count)
         {
             if (name_arr->nodes[0].nval_type != AST_NVAL_TYPE_IDENTIFIER)
             {
