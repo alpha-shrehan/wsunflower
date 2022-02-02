@@ -227,7 +227,7 @@ expr_t SF_FrameExpr_fromByte(psf_byte_array_t *arr)
             break;
             case AST_NVAL_TYPE_STRING:
                 ret.v.constant.constant_type = CONSTANT_TYPE_STRING;
-                ret.v.constant.String.value = curr.v.String.val;
+                ret.v.constant.String.value = OSF_strdup(curr.v.String.val);
                 break;
             case AST_NVAL_TYPE_BOOL:
                 ret.v.constant.constant_type = CONSTANT_TYPE_BOOL;
@@ -2117,6 +2117,40 @@ void SF_FrameIT_fromAST(mod_t *mod)
             }
         }
         break;
+        case AST_NVAL_TYPE_INT:
+        {
+            stmt_t nst;
+            nst.type = STATEMENT_TYPE_EXPR;
+            nst.line = curr.line;
+            nst.v.expr.expr = OSF_Malloc(sizeof(expr_t));
+            *(nst.v.expr.expr) = (expr_t){
+                .line = curr.line,
+                .next = NULL,
+                .type = EXPR_TYPE_CONSTANT,
+                .v.constant = {
+                    .constant_type = CONSTANT_TYPE_INT,
+                    .Int.value = curr.v.Int.val}};
+
+            PSG_AddStmt_toMod(mod, nst);
+        }
+        break;
+        case AST_NVAL_TYPE_FLOAT:
+        {
+            stmt_t nst;
+            nst.type = STATEMENT_TYPE_EXPR;
+            nst.line = curr.line;
+            nst.v.expr.expr = OSF_Malloc(sizeof(expr_t));
+            *(nst.v.expr.expr) = (expr_t){
+                .line = curr.line,
+                .next = NULL,
+                .type = EXPR_TYPE_CONSTANT,
+                .v.constant = {
+                    .constant_type = CONSTANT_TYPE_FLOAT,
+                    .Float.value = curr.v.Float.val}};
+
+            PSG_AddStmt_toMod(mod, nst);
+        }
+        break;
         default:
             break;
         }
@@ -3123,16 +3157,16 @@ stmt_t _PSF_ConstructFunctionStmt(psf_byte_array_t *arr, int idx, int *bd_sz_ptr
                             SF_FMT("Non default argument follows a default one."));
 
                     if (args->size > 2)
-                            if (args->nodes[args->size - 2].nval_type == AST_NVAL_TYPE_OPERATOR &&
-                                !strcmp(args->nodes[args->size - 2].v.Operator.val, "[") &&
-                                args->nodes[args->size - 1].nval_type == AST_NVAL_TYPE_OPERATOR &&
-                                !strcmp(args->nodes[args->size - 1].v.Operator.val, "]"))
-                            {
-                                takes_var_params = 1;
-                                args->size -= 2;
-                                skip_void_check = 1;
-                            }
-                    
+                        if (args->nodes[args->size - 2].nval_type == AST_NVAL_TYPE_OPERATOR &&
+                            !strcmp(args->nodes[args->size - 2].v.Operator.val, "[") &&
+                            args->nodes[args->size - 1].nval_type == AST_NVAL_TYPE_OPERATOR &&
+                            !strcmp(args->nodes[args->size - 1].v.Operator.val, "]"))
+                        {
+                            takes_var_params = 1;
+                            args->size -= 2;
+                            skip_void_check = 1;
+                        }
+
                     var_t _Gv = _PSF_GenerateVarFromByte(args);
 
                     if (!skip_void_check)
@@ -3210,6 +3244,12 @@ stmt_t _PSF_ConstructFunctionStmt(psf_byte_array_t *arr, int idx, int *bd_sz_ptr
                 {
                     fname = OSF_Realloc(fname, (strlen(fname) + 5) * sizeof(char));
                     strcat(fname, "\'\'");
+                }
+                break;
+                case AST_NVAL_TYPE_INT:
+                {
+                    fname = OSF_Realloc(fname, (strlen(fname) + 3) * sizeof(char));
+                    strcat(fname, "0");
                 }
                 break;
                 default:

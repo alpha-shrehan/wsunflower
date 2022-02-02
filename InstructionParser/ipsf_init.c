@@ -267,6 +267,29 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
             // f_mod->parent = mod;
             // OSF_Free(BODY(f_mod)->body);
 
+            if (cond_red.v.constant.constant_type == CONSTANT_TYPE_STRING)
+            {
+                // Convert to array
+                char *r = SF_STRING(cond_red.v.constant.String.value);
+                expr_t *ra = OSF_Malloc(strlen(r) * sizeof(expr_t));
+                int rac = 0;
+
+                for (size_t j = 0; j < strlen(r); j++)
+                {
+                    char *xx = (char *)(char[]){'\'', r[j], '\'', '\0'};
+                    ra[rac++] = (expr_t){
+                        .type = EXPR_TYPE_CONSTANT,
+                        .line = 0,
+                        .next = NULL,
+                        .v.constant = {
+                            .constant_type = CONSTANT_TYPE_STRING,
+                            .String.value = OSF_strdup(xx)}};
+                }
+
+                cond_red.v.constant.constant_type = CONSTANT_TYPE_ARRAY;
+                cond_red.v.constant.Array.index = PSG_AddArray(Sf_Array_New_fromExpr(ra, rac));
+            }
+
             switch (cond_red.v.constant.constant_type)
             {
             case CONSTANT_TYPE_ARRAY:
@@ -1651,6 +1674,84 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
             OSF_Free(_f_res);
         }
         break;
+        case CONSTANT_TYPE_STRING:
+        {
+            if (_index_red.type != EXPR_TYPE_CONSTANT)
+            {
+                SF_Assert(0, "Index operator must be a constant.", "");
+                if (OSF_GetExceptionState())
+                    goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
+            }
+
+            if (_index_red.v.constant.constant_type == CONSTANT_TYPE_INT)
+            {
+                if (_index_red.v.constant.Int.value >= strlen(_entity_red.v.constant.String.value) - 2)
+                {
+                    OSF_SetException((except_t){
+                        .type = EXCEPT_INDEX_OUT_OF_RANGE,
+                        .line = _entity_red.line,
+                        .v.ce0 = {
+                            .idx = _index_red.v.constant.Int.value,
+                            .targ = (array_t){
+                                .vals = NULL, /* vals not required */
+                                .len = strlen(_entity_red.v.constant.String.value) - 2,
+                                .evaluated = 1}}});
+
+                    goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
+                }
+
+                if (_index_red.v.constant.Int.value < 0)
+                    _index_red.v.constant.Int.value +=
+                        strlen(_entity_red.v.constant.String.value) - 2;
+
+                char *_xx = (char *)(char[]){'\'', _entity_red.v.constant.String.value[_index_red.v.constant.Int.value + 1], '\'', '\0'};
+                _fres = (expr_t){
+                    .type = EXPR_TYPE_CONSTANT,
+                    .line = 0,
+                    .next = NULL,
+                    .v.constant = {
+                        .constant_type = CONSTANT_TYPE_STRING,
+                        .String.value = OSF_strdup(_xx)}};
+            }
+            else if (_index_red.v.constant.constant_type == CONSTANT_TYPE_ARRAY)
+            {
+                array_t get_a = ARRAY(_index_red.v.constant.Array.index);
+                char *res_str = OSF_Malloc(sizeof(char));
+                *res_str = '\'';
+                int rs_count = 1;
+
+                for (size_t j = 0; j < get_a.len; j++)
+                {
+                    SF_Assert(get_a.vals[j].type == EXPR_TYPE_CONSTANT &&
+                                  get_a.vals[j].v.constant.constant_type == CONSTANT_TYPE_INT,
+                              "Elements of a slice must be integers", "");
+
+                    if (OSF_GetExceptionState())
+                        goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
+
+                    if (get_a.vals[j].v.constant.Int.value >= strlen(_entity_red.v.constant.String.value) - 2)
+                        continue;
+
+                    res_str = OSF_Realloc(res_str, (rs_count + 1) * sizeof(char));
+                    res_str[rs_count++] = _entity_red.v.constant.String.value[get_a.vals[j].v.constant.Int.value + 1];
+                }
+
+                res_str = OSF_Realloc(res_str, (rs_count + 2) * sizeof(char));
+                res_str[rs_count++] = '\'';
+                res_str[rs_count++] = '\0';
+
+                _fres = (expr_t){
+                    .type = EXPR_TYPE_CONSTANT,
+                    .line = 0,
+                    .next = NULL,
+                    .v.constant = {
+                        .constant_type = CONSTANT_TYPE_STRING,
+                        .String.value = OSF_strdup(res_str)}};
+
+                OSF_Free(res_str);
+            }
+        }
+        break;
 
         default:
             break;
@@ -2130,6 +2231,12 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
                     case CONSTANT_TYPE_DICT:
                     {
                         sprintf(_fmt, "{:}.%s", expr->v.member_access.child);
+                        gv = IPSF_GetVar_fromMod(mod, _fmt, NULL);
+                    }
+                    break;
+                    case CONSTANT_TYPE_INT:
+                    {
+                        sprintf(_fmt, "0.%s", expr->v.member_access.child);
                         gv = IPSF_GetVar_fromMod(mod, _fmt, NULL);
                     }
                     break;
@@ -2719,7 +2826,12 @@ expr_t _IPSF_ExecUnaryArithmetic(mod_t *mod, expr_t *expr)
     enum ExprArithmeticOpOrderEnum *order = OSF_Malloc(expr->v.unary_arith_op_expr.order_count * sizeof(enum ExprArithmeticOpOrderEnum));
 
     for (size_t i = 0; i < expr->v.unary_arith_op_expr.sibs_size; i++)
+    {
         sibs[i] = IPSF_ReduceExpr_toConstant(mod, expr->v.unary_arith_op_expr.sibs[i]);
+
+        if (OSF_GetExceptionState())
+            return (expr_t){};
+    }
 
     for (size_t i = 0; i < expr->v.unary_arith_op_expr.ops_size; i++)
         ops[i] = expr->v.unary_arith_op_expr.ops[i];
@@ -2737,7 +2849,7 @@ expr_t _IPSF_ExecUnaryArithmetic(mod_t *mod, expr_t *expr)
 
     // Eliminate all '-'
     for (size_t i = 0; i < order_count; i++)
-    {
+    {   
         enum ExprArithmeticOpOrderEnum ci = order[i];
 
         if (ci == ORDER_OPERATOR)
@@ -3232,10 +3344,18 @@ expr_t _IPSF_ExecUnaryArithmetic(mod_t *mod, expr_t *expr)
                     break;
                 case CONSTANT_TYPE_STRING:
                 {
-                    r.v.constant.String.value = OSF_Malloc((strlen((char *)RES_LHS) + strlen((char *)RES_RHS) + 1) * sizeof(char));
+                    // printf("%s %s\n", RES_LHS, RES_RHS);
+                    r.v.constant.String.value = OSF_Malloc((strlen((char *)RES_LHS) + strlen((char *)RES_RHS) + 3) * sizeof(char));
                     RES_RHS++;
                     ((char *)RES_LHS)[strlen(((char *)RES_LHS)) - 1] = '\0';
-                    sprintf(r.v.constant.String.value, "%s%s", RES_LHS, RES_RHS);
+                    sprintf(r.v.constant.String.value, "%s%s", (char *)RES_LHS, (char *)RES_RHS);
+
+                    RES_RHS++;
+                    ((char *)RES_LHS)[strlen(((char *)RES_LHS))] = '\'';
+
+                    // char *ref = r.v.constant.String.value;
+                    // r.v.constant.String.value = OSF_strdup(r.v.constant.String.value);
+                    // OSF_Free(ref);
                 }
                 break;
                 case -1:
@@ -3471,7 +3591,8 @@ expr_t *_IPSF_CallFunction(fun_t fun_s, expr_t *args, int arg_size, mod_t *mod)
     }
 
     if (OSF_GetExceptionState())
-        return RES;;
+        return RES;
+    ;
 
     fun_mod->parent = fun_s.parent;
     _cargs_without_voids = _PSF_RemoveVoidsFromExprArray(_collectivise_args, _collectivise_args_count, &_cargs_without_voids_size);
@@ -3988,44 +4109,41 @@ char *_IPSF_GetDir_FromFilePath(char *path)
 
 void SF_Assert(int cond, char *msg, const char *fname)
 {
-    if (!strcmp(fname, "SF_CreateModule"))
-        if (!cond)
-            exit(printf("Error: seg_fault.\n"));
-        else
-            return;
-    
+    if (fname != NULL)
+        if (!strcmp(fname, "SF_CreateModule"))
+            if (!cond)
+                exit(printf("Error: seg_fault.\n"));
+            else
+                return;
+
     stmt_t nst;
     nst.type = STATEMENT_TYPE_ASSERT;
     nst.line = 0;
     nst.v.assert_stmt.condition = OSF_Malloc(sizeof(expr_t));
-    *(nst.v.assert_stmt.condition) = (expr_t) {
+    *(nst.v.assert_stmt.condition) = (expr_t){
         .type = EXPR_TYPE_CONSTANT,
         .line = 0,
         .next = NULL,
         .v.constant = {
             .constant_type = CONSTANT_TYPE_BOOL,
-            .Bool.value = !!cond
-        }
-    };
+            .Bool.value = !!cond}};
     nst.v.assert_stmt.message = NULL;
     if (msg != NULL)
     {
         nst.v.assert_stmt.message = OSF_Malloc(sizeof(expr_t));
-        *(nst.v.assert_stmt.message) = (expr_t) {
+        *(nst.v.assert_stmt.message) = (expr_t){
             .type = EXPR_TYPE_CONSTANT,
             .line = 0,
             .next = NULL,
             .v.constant = {
                 .constant_type = CONSTANT_TYPE_STRING,
-                .String.value = msg
-            }
-        };
+                .String.value = OSF_strdup(msg)}};
     }
 
     mod_t *m = SF_CreateModule(MODULE_TYPE_FILE, NULL);
     BODY(m)->body_size = 1;
     *(BODY(m)->body) = nst;
-    
+
     OSF_Free(IPSF_ExecIT_fromMod(m, NULL));
     OSF_Free(m);
 }

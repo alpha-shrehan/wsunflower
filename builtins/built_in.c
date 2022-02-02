@@ -321,6 +321,9 @@ expr_t *NativeFunctionLen(mod_t *mod_ref)
         case CONSTANT_TYPE_ARRAY:
             __res->v.constant.Int.value = ARRAY(gve.v.constant.Array.index).len;
             break;
+        case CONSTANT_TYPE_STRING:
+            __res->v.constant.Int.value = strlen(gve.v.constant.String.value) - 2;
+            break;
 
         default:
             break;
@@ -518,6 +521,7 @@ expr_t *Native_Proto_Array_push(mod_t *mod_ref)
 
     expr_t vmem = v_Member->val,
            vdata = v_Data->val;
+    
     assert((
                vmem.type == EXPR_TYPE_CONSTANT &&
                vmem.v.constant.constant_type == CONSTANT_TYPE_ARRAY) &&

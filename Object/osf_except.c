@@ -192,7 +192,136 @@ void OSF_RaiseExceptionMessage(except_t *e)
         printf("       return called outside function.\n");
     }
     break;
-
+    case EXCEPT_CLASS_OBJ_NOT_AN_ITERABLE:
+    {
+        printf("       Class object is not an iterable.\n");
+    }
+    break;
+    case EXCEPT_ITERATIVE_MUST_BE_A_CLASS_OBJECT:
+    {
+        printf("       Iterative must be a class object.\n");
+    }
+    break;
+    case EXCEPT_CLASS_OBJ_NOT_AN_ITERATIVE:
+    {
+        printf("       Class object is not an iterative.\n");
+    }
+    break;
+    case EXCEPT_DICT_ITERATION_ALLOWS_MAX_2_SUBSTITUTION_VARS:
+    {
+        printf("       Dictionary iteration allows a maximum of 2 substitution variables.\n");
+    }
+    break;
+    case EXCEPT_ITERATION_COUNT_MUST_BE_AN_INTEGER:
+    {
+        printf("       Iteration count must be an integer.\n");
+    }
+    break;
+    case EXCEPT_IMPORT_MUST_HAVE_AN_ALIAS:
+    {
+        printf("       Import module must have an alias.\n");
+    }
+    break;
+    case EXCEPT_MODULE_HAS_NO_CONSTRUCTOR:
+    {
+        printf("       Module has no constructor.\n");
+    }
+    break;
+    case EXCEPT_MODULE_CONSTRUCTOR_IS_NOT_A_FUNCTION:
+    {
+        printf("       Module constructor is not a function.\n");
+    }
+    break;
+    case EXCEPT_INLINE_ASSIGNMENT_IS_NOT_ALLOWED_IN_MODULE_CONSTRUCTOR:
+    {
+        printf("       Inline assignment is not allowed in module constructor.\n");
+    }
+    break;
+    case EXCEPT_STEP_COUNT_MUST_BE_AN_INTEGER:
+    {
+        printf("       Step count must be an integer.\n");
+    }
+    break;
+    case EXCEPT_TO_STEP_ENTITIES_MUST_BE_AN_INTEGER:
+    {
+        printf("       To step entities must be an integer.\n");
+    }
+    break;
+    case EXCEPT_CLASS_OBJECT_IS_NOT_CALLABLE:
+    {
+        printf("       Class object is not callable.\n");
+    }
+    break;
+    case EXCEPT_CLASS_OBJECT_CANNOT_BE_INDEXED:
+    {
+        printf("       Class object cannot be indexed.\n");
+    }
+    break;
+    case EXCEPT_OBJECT_HAS_NO_MEMBER:
+    {
+        printf("       Object has no member.\n");
+    }
+    break;
+    case EXCEPT_MODULE_HAS_NO_MEMBER:
+    {
+        printf("       Module has no member.\n");
+    }
+    break;
+    case EXCEPT_CANNOT_OVERLOAD_DOT_ON_ENTITY:
+    {
+        printf("       Cannot overload operator '.' on entity.\n");
+    }
+    break;
+    case EXCEPT_ARRAY_INDEX_MUST_BE_AN_INTEGER:
+    {
+        printf("       Array index must be an integer.\n");
+    }
+    break;
+    case EXCEPT_CANNOT_USE_UNARY_MINUS_ON_NON_NUMBER_ENTITY:
+    {
+        printf("       Cannot use unary '-' on non number entity.\n");
+    }
+    break;
+    case EXCEPT_INVALID_USAGE_OF_OP_PLUS:
+    {
+        printf("       Invalid usage of unary '+'.\n");
+    }
+    break;
+    case EXCEPT_INVALID_NUMBER_OF_ARGS_PASSED:
+    {
+        printf("       Invalid number of arguments passed.\n");
+    }
+    break;
+    case EXCEPT_FUNCTION_WITH_VARIABLE_ARGUMENTS_NEEDS_TO_HAVE_AN_UNDEFINED_VARIABLE:
+    {
+        printf("       Function with variable arguments needs to have an undefined variable.\n");
+    }
+    break;
+    case EXCEPT_UNKNOWN_ENTITIES_TO_COMPARE:
+    {
+        printf("       Unknown entities to compare.\n");
+    }
+    break;
+    case EXCEPT_ENTITY_MUST_BE_A_STRING:
+    {
+        printf("       Entity must be a string.\n");
+    }
+    break;
+    case EXCEPT_INVALID_ITERATOR:
+    {
+        printf("       Invalid iterator.\n");
+    }
+    break;
+    case EXCEPT_NON_DEFAULT_ARGUMENT_FOLLOWS_A_DEFAULT_ARG:
+    {
+        printf("       Non default argument follows a default arg.\n");
+    }
+    break;
+    case EXCEPT_NON_DEFAULT_ARGUMENT_FOLLOWS_VAR_ARGS:
+    {
+        printf("       Non default argument follows variable arguments.\n");
+    }
+    break;
     default:
         printf("       Asynchronous exception not defined yet. (Code: %d)\n", e->type);
         break;

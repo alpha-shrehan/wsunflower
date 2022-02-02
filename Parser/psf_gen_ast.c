@@ -140,7 +140,7 @@ psf_byte_array_t *_PSF_New_AST_FromString(const char *src)
             {
                 if (c == '.')
                 {
-                    if (is_float)
+                    if (is_float || strstr("0123456789.", (char[]){src[i + 1], '\0'}) == NULL)
                         break;
                     is_float = 1;
                 }
@@ -470,7 +470,7 @@ char *_PSF_TrimSFStrImp(char *_str)
 {
     char *_ccpy = OSF_strdup(_str);
     _ccpy++;
-    _ccpy[strlen(_ccpy) - 1] = '\0';
+    _ccpy[strlen(_str) - 1] = '\0';
 
     return _ccpy;
 }

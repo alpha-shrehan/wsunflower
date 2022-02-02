@@ -1,1 +1,20 @@
-write(1 + '')
+fun ''.split(self, delim)
+    res = ['']
+    for i in 0 to len(self) step len(delim)
+        v = self[i to i + len(delim)]
+        if v == delim
+            res.push('')
+        else
+            res[len(res) - 1] += v
+    return res
+
+fun ''.join(self, it)
+    res = ''
+    for i in 0 to len(it)
+        res += it[i]
+        if i < len(it) - 1
+            res += self
+    return res
+
+a = 'Hello$World'
+write(', '.join(a.split('$')), end='!\n')
