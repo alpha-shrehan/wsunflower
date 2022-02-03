@@ -18,7 +18,13 @@ static dict_t *PSG_DictHolder;
 static int PSG_DictHolder_Count;
 
 const char *_PSF_ImportPrefixes[] = {
+#if SFCONFIG == SFC_DEBUG
+#if defined(WIN32) && SFCONFIG
     "C:/Users/USER/Desktop/Sunflower/Lib/",
+#elif defined(__linux__)
+    "/home/shrehanrajsingh/Desktop/Github/wsunflower/Lib/",
+#endif
+#endif
     NULL};
 
 mod_t *SF_CreateModule(enum ModuleTypeEnum mod_type, psf_byte_array_t *ast_ref)
@@ -191,7 +197,142 @@ expr_t SF_FrameExpr_fromByte(psf_byte_array_t *arr)
 
     if (ret_now)
         return ret;
+    
+    gb = 0;    
+    for (int i = 0; i < arr->size; i++)
+    {
+        psf_byte_t curr = arr->nodes[i];
+        int doBreak = 0;
 
+        switch (curr.nval_type)
+        {
+        case AST_NVAL_TYPE_IDENTIFIER:
+        {
+            const char *tok = curr.v.Identifier.val;
+
+            if (curr.v.Identifier.is_token && !gb)
+            {
+                if (!strcmp(tok, "and"))
+                {
+                    expr_t _res = _PSF_ConstructAndClause(arr, i);
+
+                    if (OSF_GetExceptionState())
+                        goto __label_end_abrupt_SF_FrameExpr_fromByte;
+
+                    ret = _res;
+                    doBreak = 1;
+                    ret_now = 1;
+                    break;
+                }
+                else if (!strcmp(tok, "or"))
+                {
+                    expr_t _res = _PSF_ConstructOrClause(arr, i);
+
+                    if (OSF_GetExceptionState())
+                        goto __label_end_abrupt_SF_FrameExpr_fromByte;
+
+                    ret = _res;
+                    doBreak = 1;
+                    ret_now = 1;
+                    break;
+                }
+            }
+        }
+        break;
+        case AST_NVAL_TYPE_OPERATOR:
+        {
+            const char *op = curr.v.Operator.val;
+
+            if (!strcmp(op, "(") ||
+                !strcmp(op, "{") ||
+                !strcmp(op, "["))
+                gb++;
+            else if (!strcmp(op, ")") ||
+                     !strcmp(op, "}") ||
+                     !strcmp(op, "]"))
+                gb--;
+        }
+        break;
+
+        default:
+            break;
+        }
+
+        if (OSF_GetExceptionState())
+            goto __label_end_abrupt_SF_FrameExpr_fromByte;
+
+        if (doBreak)
+            break;
+    }
+
+    if (OSF_GetExceptionState())
+        goto __label_end_abrupt_SF_FrameExpr_fromByte;
+
+    if (ret_now)
+        return ret;
+
+    gb = 0;    
+    for (int i = 0; i < arr->size; i++)
+    {
+        psf_byte_t curr = arr->nodes[i];
+        int doBreak = 0;
+
+        switch (curr.nval_type)
+        {
+        case AST_NVAL_TYPE_IDENTIFIER:
+        {
+            const char *tok = curr.v.Identifier.val;
+
+            if (curr.v.Identifier.is_token && !gb)
+            {
+                if (!strcmp(tok, "not"))
+                {
+                    expr_t _res = _PSF_ConstructNotClause(arr, i);
+
+                    if (OSF_GetExceptionState())
+                        goto __label_end_abrupt_SF_FrameExpr_fromByte;
+
+                    ret = _res;
+                    doBreak = 1;
+                    ret_now = 1;
+                    break;
+                }
+            }
+        }
+        break;
+        case AST_NVAL_TYPE_OPERATOR:
+        {
+            const char *op = curr.v.Operator.val;
+
+            if (!strcmp(op, "(") ||
+                !strcmp(op, "{") ||
+                !strcmp(op, "["))
+                gb++;
+            else if (!strcmp(op, ")") ||
+                     !strcmp(op, "}") ||
+                     !strcmp(op, "]"))
+                gb--;
+        }
+        break;
+
+        default:
+            break;
+        }
+
+        if (OSF_GetExceptionState())
+            goto __label_end_abrupt_SF_FrameExpr_fromByte;
+
+        if (doBreak)
+            break;
+    }
+
+    if (OSF_GetExceptionState())
+        goto __label_end_abrupt_SF_FrameExpr_fromByte;
+
+    if (ret_now)
+        return ret;
+
+    gb = 0;
     for (int i = 0; i < arr->size; i++)
     {
         psf_byte_t curr = arr->nodes[i];
@@ -2279,7 +2420,10 @@ void PSG_PrintExprType(enum ExprTypeEnum _en)
         "EXPR_TYPE_MEMBER_ACCESS",
         "EXPR_TYPE_MODULE",
         "EXPR_TYPE_IN_CLAUSE",
-        "EXPR_TYPE_LAMBDA"};
+        "EXPR_TYPE_LAMBDA",
+        "EXPR_TYPE_AND_CLAUSE",
+        "EXPR_TYPE_OR_CLAUSE",
+        "EXPR_TYPE_NOT_CLAUSE"};
 
     printf("%s(%d)\n", A[_en + 1 < (sizeof(A) / sizeof(A[0])) ? _en + 1 : 0], _en);
 }
@@ -2405,10 +2549,13 @@ int _PSF_EntityIsTrue(expr_t ent)
             return !!ent.v.constant.Int.value;
             break;
         case CONSTANT_TYPE_STRING:
-            return !!strlen(ent.v.constant.String.value);
+            return strlen(ent.v.constant.String.value) != 2;
             break;
         case CONSTANT_TYPE_CLASS_OBJECT:
             return 1;
+            break;
+        case CONSTANT_TYPE_ARRAY:
+            return !!ARRAY(ent.v.constant.Array.index).len;
             break;
         default:
             return 0;
@@ -4311,4 +4458,63 @@ void _PSF_ConstructIndividualKeyVal_forDict_fromByte(psf_byte_array_t *arr, expr
         OSF_Free(_val_arr->nodes);
         OSF_Free(_val_arr);
     }
+}
+
+expr_t _PSF_ConstructAndClause(psf_byte_array_t *arr, int idx)
+{
+    expr_t _res;
+    _res.type = EXPR_TYPE_AND_CLAUSE;
+    _res.v.clause_and._lhs = OSF_Malloc(sizeof(expr_t));
+    _res.v.clause_and._rhs = OSF_Malloc(sizeof(expr_t));
+
+    int pres_s = arr->size;
+    arr->size = idx;
+    *(_res.v.clause_and._lhs) = SF_FrameExpr_fromByte(arr);
+
+    arr->size = pres_s - idx - 1;
+    arr->nodes += idx + 1;
+    *(_res.v.clause_and._rhs) = SF_FrameExpr_fromByte(arr);
+
+    arr->size = pres_s;
+    arr->nodes -= idx + 1;
+
+    return _res;
+}
+
+expr_t _PSF_ConstructOrClause(psf_byte_array_t *arr, int idx)
+{
+    expr_t _res;
+    _res.type = EXPR_TYPE_OR_CLAUSE;
+    _res.v.clause_and._lhs = OSF_Malloc(sizeof(expr_t));
+    _res.v.clause_and._rhs = OSF_Malloc(sizeof(expr_t));
+
+    int pres_s = arr->size;
+    arr->size = idx;
+    *(_res.v.clause_and._lhs) = SF_FrameExpr_fromByte(arr);
+
+    arr->size = pres_s - idx - 1;
+    arr->nodes += idx + 1;
+    *(_res.v.clause_and._rhs) = SF_FrameExpr_fromByte(arr);
+
+    arr->size = pres_s;
+    arr->nodes -= idx + 1;
+
+    return _res;
+}
+
+expr_t _PSF_ConstructNotClause(psf_byte_array_t *arr, int idx)
+{
+    expr_t res;
+    res.type = EXPR_TYPE_NOT_CLAUSE;
+    res.v.clause_not.entity = OSF_Malloc(sizeof(expr_t));
+
+    arr->nodes += idx + 1;
+    arr->size -= idx + 1;
+
+    *(res.v.clause_not.entity) = SF_FrameExpr_fromByte(arr);
+
+    arr->nodes -= idx + 1;
+    arr->size += idx + 1;
+
+    return res;
 }

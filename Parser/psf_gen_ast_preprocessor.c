@@ -24,6 +24,9 @@ const char *PSF_ValidTokens[] = {
     "default",
     "assert",
     "from",
+    "and",
+    "or",
+    "not",
     NULL};
 
 const char *PSF_ValidDataTypes[] = {

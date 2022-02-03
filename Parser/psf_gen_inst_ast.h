@@ -27,7 +27,10 @@ enum ExprTypeEnum
     EXPR_TYPE_MEMBER_ACCESS,
     EXPR_TYPE_MODULE,
     EXPR_TYPE_IN_CLAUSE,
-    EXPR_TYPE_LAMBDA
+    EXPR_TYPE_LAMBDA,
+    EXPR_TYPE_AND_CLAUSE,
+    EXPR_TYPE_OR_CLAUSE,
+    EXPR_TYPE_NOT_CLAUSE
 };
 
 enum ConstantTypeEnum
@@ -245,6 +248,23 @@ struct _expr
             int var_size;
             struct _expr *body;
         } lambda_;
+
+        struct
+        {
+            struct _expr *_lhs;
+            struct _expr *_rhs;
+        } clause_and;
+
+        struct
+        {
+            struct _expr *_lhs;
+            struct _expr *_rhs;
+        } clause_or;
+
+        struct
+        {
+            struct _expr *entity;
+        } clause_not;
 
     } v;
 };
@@ -939,3 +959,27 @@ expr_t _IPSF_ExecLogicalArithmetic(expr_t, int, expr_t);
  * @param fname Function name where assert was called
  */
 void SF_Assert(int, char *, const char *);
+
+/**
+ * @brief Construct 'and' clause from bytecode
+ * @param arr Array
+ * @param idx Index
+ * @return expr_t 
+ */
+expr_t _PSF_ConstructAndClause(psf_byte_array_t *, int);
+
+/**
+ * @brief Construct 'or' clause from bytecode
+ * @param arr Array
+ * @param idx Index
+ * @return expr_t 
+ */
+expr_t _PSF_ConstructOrClause(psf_byte_array_t *, int);
+
+/**
+ * @brief Construct 'not' clause from bytecode
+ * @param arr Array
+ * @param idx Index
+ * @return expr_t 
+ */
+expr_t _PSF_ConstructNotClause(psf_byte_array_t *, int);

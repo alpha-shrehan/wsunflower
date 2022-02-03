@@ -2339,6 +2339,63 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
                 .name = "<lambda>"}};
     }
     break;
+    case EXPR_TYPE_AND_CLAUSE:
+    {
+        expr_t ret;
+        expr_t lhs_red = IPSF_ReduceExpr_toConstant(mod, *(expr->v.clause_and._lhs));
+
+        if (OSF_GetExceptionState())
+            goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
+        
+        if (!_PSF_EntityIsTrue(lhs_red))
+            ret = lhs_red;
+        else
+        {
+            expr_t rhs_red = IPSF_ReduceExpr_toConstant(mod, *(expr->v.clause_and._rhs));
+
+            if (OSF_GetExceptionState())
+                goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
+            ret = rhs_red;
+        }
+
+        *RES = ret;
+    }
+    break;
+    case EXPR_TYPE_OR_CLAUSE:
+    {
+        expr_t ret;
+        expr_t lhs_red = IPSF_ReduceExpr_toConstant(mod, *(expr->v.clause_and._lhs));
+
+        if (OSF_GetExceptionState())
+            goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
+        if (_PSF_EntityIsTrue(lhs_red))
+            ret = lhs_red;
+        else
+        {
+            expr_t rhs_red = IPSF_ReduceExpr_toConstant(mod, *(expr->v.clause_and._rhs));
+            
+            if (OSF_GetExceptionState())
+                goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
+            ret = rhs_red;
+        }
+
+        *RES = ret;
+    }
+    break;
+    case EXPR_TYPE_NOT_CLAUSE:
+    {
+        expr_t ret;
+        ret.type = EXPR_TYPE_CONSTANT;
+        ret.v.constant.constant_type = CONSTANT_TYPE_BOOL;
+        expr_t ered = IPSF_ReduceExpr_toConstant(mod, *(expr->v.clause_not.entity));
+        
+        if (OSF_GetExceptionState())
+            goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
+
+        ret.v.constant.Bool.value = !_PSF_EntityIsTrue(ered);
+        *RES = ret;
+    }
+    break;
     default:
     {
         *RES = *expr;

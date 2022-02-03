@@ -1,6 +1,1 @@
-from std.string import *
-from std.dict import *
-from algorithm import zip
-
-a = {1: 2, 3: 4}
-write(zip(a.keys(), a.values()))
+write(1 and 2 or 3 and not 10 or 17 and 0 or not True and False)
