@@ -1,0 +1,11 @@
+fun {:}.keys(self)
+    res = []
+    for i, _ in self
+        res.push(i)
+    return res
+
+fun {:}.values(self)
+    res = []
+    for _, i in self
+        res.push(i)
+    return res

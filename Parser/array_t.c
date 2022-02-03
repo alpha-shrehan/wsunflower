@@ -22,6 +22,7 @@ array_t *Sf_Array_New_Ptr(void)
 array_t Sf_Array_New_fromExpr(expr_t *ea, int sz)
 {
     array_t n = Sf_Array_New();
+    OSF_Free(n.vals);
     n.vals = ea;
     n.len = sz;
     // n.parent = NULL;

@@ -1,3 +1,10 @@
 from .linkedlist import LinkedList
 from .tree import BinaryTree, BinarySearchTree
 from .range import range
+
+fun zip(li, ri)
+    assert len(li) == len(ri), 'Cannot zip iterables of different sizes'
+    res = []
+    for i in 0 to len(li)
+        res.push([li[i], ri[i]])
+    return res

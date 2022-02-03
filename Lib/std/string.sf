@@ -1,0 +1,47 @@
+fun ''.split(self, delim)
+    res = ['']
+
+    for i in 0 to len(self) step len(delim)
+        v = self[i to i + len(delim)]
+
+        if v == delim
+            res.push('')
+        else
+            res[len(res) - 1] += v
+        
+    return res
+
+fun ''.join(self, it)
+    res = ''
+
+    for i in 0 to len(it)
+        res += it[i]
+
+        if i < len(it) - 1
+            res += self
+        
+    return res
+
+fun ''.index(self, delim)
+    for i in 0 to len(self)
+        if self[i to i + len(delim)] == delim
+            return i
+    return -1
+
+fun ''.upper(self)
+    res = ''
+    lowers = 'qwertyuiopasdfghjklzxcvbnm'
+    uppers = 'QWERTYUIOPASDFGHJKLZXCVBNM'
+    for i in self
+        if i in lowers
+            res += uppers[lowers.index(i)]
+        else
+            res += i
+    
+    return res
+
+fun ''.capitalize(self)
+    if len(self) == 0
+        return self
+    
+    return self[0].upper() + self[1 to len(self)]

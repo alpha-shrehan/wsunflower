@@ -1170,7 +1170,7 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
         case CONSTANT_TYPE_ARRAY:
         {
             // DO NOT FREE
-            if (!ARRAY(expr->v.constant.Array.index).evaluated)
+            if (!ARRAY(expr->v.constant.Array.index).evaluated && ARRAY(expr->v.constant.Array.index).len)
             {
                 expr_t *cpy_vals = ARRAY(expr->v.constant.Array.index).vals;
                 expr_t *cpy_reds = OSF_Malloc(ARRAY(expr->v.constant.Array.index).len * sizeof(expr_t));

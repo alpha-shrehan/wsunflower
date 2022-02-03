@@ -470,7 +470,7 @@ char *_PSF_TrimSFStrImp(char *_str)
 {
     char *_ccpy = OSF_strdup(_str);
     _ccpy++;
-    _ccpy[strlen(_str) - 1] = '\0';
+    _ccpy[strlen(_ccpy) - 1] = '\0';
 
     return _ccpy;
 }
