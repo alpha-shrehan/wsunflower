@@ -10,3 +10,22 @@ class Derived
         super(self, Base).__main__(10)
 
 x = Derived()
+
+import std
+from std.dict import *
+
+@std.object
+class Base
+    fun __main__(self)
+        super(self, std.object).__main__(self)
+
+@std.object
+class Other
+    fun __main__(self)
+        super(self, std.object).__main__(self)
+
+x = Base()
+y = Other()
+z = Other()
+a = Base()
+write(std.object.ref_count)

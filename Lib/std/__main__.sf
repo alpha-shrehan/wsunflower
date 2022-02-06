@@ -4,6 +4,6 @@ class object
     ref_count = {}
     fun __main__(self, oref)
         if oref in self.ref_count.keys()
-            self.ref_count[oref] = self.ref_count[oref] + 1
+            self.ref_count[oref] += 1
         else
             self.ref_count[oref] = 1
