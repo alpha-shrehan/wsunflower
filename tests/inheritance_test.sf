@@ -1,0 +1,12 @@
+class Base
+    a = None
+    fun __main__(self, a)
+        self.a = a
+        write('In Base!', a)
+
+@Base
+class Derived
+    fun __main__(self)
+        super(self, Base).__main__(10)
+
+x = Derived()

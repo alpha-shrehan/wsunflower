@@ -52,6 +52,15 @@ struct __mod_child_varhold_s *IPSF_ExecVarDecl_fromStmt(mod_t *, stmt_t, int *);
 struct __mod_child_varhold_s *IPSF_GetVar_fromMod(mod_t *, const char *, int *);
 
 /**
+ * @brief Get variable from class
+ * @param cls Class pointer
+ * @param name Name
+ * @param err Error code pointer (can be NULL)
+ * @return struct __mod_child_varhold_s* 
+ */
+var_t *IPSF_GetVar_fromClass(class_t *, const char *, int *);
+
+/**
  * @brief Reduce a raw expression (like EXPR_TYPE_VARIABLE) to constant.
  * Internally calls IPSF_ExecExprStatement_fromMod()
  * @param mod Module
@@ -161,3 +170,11 @@ expr_t _IPSF_Entity_IsIn_Entity(expr_t, expr_t, mod_t *);
  * @return char* 
  */
 char *_IPSF_GetDir_FromFilePath(char *);
+
+/**
+ * @brief Copy class and return it. 
+ * Assumes the class to copy is to be used as an object.
+ * @param cls Class
+ * @return class_t 
+ */
+class_t SF_ClassCopy(class_t);

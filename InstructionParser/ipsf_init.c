@@ -806,7 +806,11 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                 _cdef.object_count = 0;
                 _cdef.mod->parent = mod;
                 _cdef.killed = 0;
+                _cdef.inherit_count = curr.v.class_decl.inherits_count;
                 _cdef.objects = NULL;
+                _cdef.inherits_ = _cdef.inherit_count > 0 ? OSF_Malloc(_cdef.inherit_count * sizeof(int_tuple)) : NULL;
+                _cdef.inherits_exprs = curr.v.class_decl.inherits_;
+                _cdef.inh_expr_size = _cdef.inherit_count;
 
                 BODY(_cdef.mod)->body = curr.v.class_decl.body;
                 BODY(_cdef.mod)->body_size = curr.v.class_decl.body_size;
@@ -1351,6 +1355,39 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
             inst_c.name = OSF_strdup(cref.name);
             inst_c.object_count = 0;
             inst_c.killed = 0;
+            inst_c.inherit_count = cref.inherit_count;
+            inst_c.inherits_ = inst_c.inherit_count > 0 ? OSF_Malloc(inst_c.inherit_count * sizeof(int_tuple)) : NULL;
+            inst_c.inherits_exprs = NULL;
+            inst_c.inh_expr_size = 0;
+            inst_c.objects = NULL;
+
+            if (inst_c.inherit_count)
+            {
+                for (size_t j = 0; j < cref.inh_expr_size; j++)
+                {
+                    expr_t er = IPSF_ReduceExpr_toConstant(mod, cref.inherits_exprs[j][0]);
+
+                    if (OSF_GetExceptionState())
+                        goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
+
+                    if (er.type != EXPR_TYPE_CLASS)
+                        OSF_RaiseException_InheritMustBeAClass(expr->line);
+
+                    if (OSF_GetExceptionState())
+                        goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
+
+                    class_t ob = (*PSG_GetClasses())[er.v.class_expr.index];
+                    int_tuple idx = PSG_AddClassObject_toClass(SF_ClassCopy(ob), er.v.class_expr.index);
+
+                    inst_c.inherits_[j] = idx;
+
+                    // for (size_t k = 0; k < ob.mod->var_holds_size; k++)
+                    // {
+                    //     if (IPSF_GetVar_fromMod(inst_c.mod, ob.mod->var_holds[k].name, NULL) == NULL)
+                    //         _IPSF_AddVar_toModule(inst_c.mod, ob.mod->var_holds[k].name, ob.mod->var_holds[k].val);
+                    // }
+                }
+            }
 
             int_tuple cobj_idx = PSG_AddClassObject_toClass(inst_c, get_c.v.class_expr.index);
 
@@ -1462,6 +1499,30 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
 
             OSF_Free(mf_res);
             OSF_Free(f_args);
+        }
+        break;
+        case EXPR_TYPE_CONSTANT:
+        {
+            switch (_red_nme.v.constant.constant_type)
+            {
+            case CONSTANT_TYPE_CLASS_OBJECT:
+            {
+                class_t *cref = _IPSF_GetClass_fromIntTuple(_red_nme.v.constant.ClassObj.idx);
+                var_t *get_opc = IPSF_GetVar_fromClass(cref, "__call__", NULL);
+
+                if (get_opc == NULL)
+                {
+                    OSF_RaiseException_VariableDoesNotExist(expr->line, cref->mod, "__call__");
+                    goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
+                }
+
+                // TODO
+            }
+            break;
+
+            default:
+                break;
+            }
         }
         break;
 
@@ -2193,7 +2254,7 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
                 class_t *__c = _IPSF_GetClass_fromIntTuple(_red.v.constant.ClassObj.idx);
                 mod_t *_pres_c_mod_parent = __c->mod->parent;
                 __c->mod->parent = NULL;
-                var_t *_v_ref = IPSF_GetVar_fromMod(__c->mod, expr->v.member_access.child, &ef);
+                var_t *_v_ref = IPSF_GetVar_fromClass(__c, expr->v.member_access.child, &ef);
                 __c->mod->parent = _pres_c_mod_parent;
 
                 if (ef == IPSF_ERR_VAR_NOT_FOUND)
@@ -2346,7 +2407,7 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
 
         if (OSF_GetExceptionState())
             goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
-        
+
         if (!_PSF_EntityIsTrue(lhs_red))
             ret = lhs_red;
         else
@@ -2373,7 +2434,7 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
         else
         {
             expr_t rhs_red = IPSF_ReduceExpr_toConstant(mod, *(expr->v.clause_and._rhs));
-            
+
             if (OSF_GetExceptionState())
                 goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
             ret = rhs_red;
@@ -2388,7 +2449,7 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
         ret.type = EXPR_TYPE_CONSTANT;
         ret.v.constant.constant_type = CONSTANT_TYPE_BOOL;
         expr_t ered = IPSF_ReduceExpr_toConstant(mod, *(expr->v.clause_not.entity));
-        
+
         if (OSF_GetExceptionState())
             goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
 
@@ -2560,6 +2621,12 @@ IPSF_ExecVarDecl_fromStmt(mod_t *mod, stmt_t stmt, int *err)
                 }
             }
             break;
+            case CONSTANT_TYPE_DICT:
+            {
+                dict_t *_d_conf = PSG_GetDict_Ptr(ent_red.v.constant.Dict.index);
+                Sf_Dict_Set(_d_conf, idx_red, reduced_val_cpy);
+            }
+            break;
 
             default:
                 break;
@@ -2622,6 +2689,31 @@ IPSF_GetVar_fromMod(mod_t *mod, const char *name, int *err)
     }
 
     return varhold;
+}
+
+var_t *IPSF_GetVar_fromClass(class_t *cls, const char *name, int *err)
+{
+    mod_t *pres_p = cls->mod->parent;
+    cls->mod->parent = NULL;
+
+    var_t *mv = IPSF_GetVar_fromMod(cls->mod, name, err);
+    cls->mod->parent = pres_p;
+
+    if (mv != NULL)
+        return mv;
+
+    for (size_t i = 0; i < cls->inherit_count; i++)
+    {
+        class_t *nest_ = _IPSF_GetClass_fromIntTuple(cls->inherits_[i]);
+        var_t *mv = IPSF_GetVar_fromMod(nest_->mod, name, err);
+
+        if (mv != NULL)
+            return mv;
+    }
+
+    if (err != NULL)
+        *err = IPSF_ERR_VAR_NOT_FOUND;
+    return NULL;
 }
 
 expr_t IPSF_ReduceExpr_toConstant(mod_t *mod, expr_t expr)
@@ -2906,7 +2998,7 @@ expr_t _IPSF_ExecUnaryArithmetic(mod_t *mod, expr_t *expr)
 
     // Eliminate all '-'
     for (size_t i = 0; i < order_count; i++)
-    {   
+    {
         enum ExprArithmeticOpOrderEnum ci = order[i];
 
         if (ci == ORDER_OPERATOR)
@@ -3882,9 +3974,16 @@ expr_t _IPSF_ExecLogicalArithmetic(expr_t _lhs, int op_ty, expr_t _rhs)
                         _res.v.constant.Bool.value = !strcmp(_lhs.v.constant.String.value, _rhs.v.constant.String.value);
                         break;
                     default:
-                        OSF_RaiseException_UnknownEntitiesToCompare(_lhs.line, _lhs, _rhs);
-                        _res.v.constant.Bool.value = 0;
-                        break;
+                    {
+                        // OSF_RaiseException_UnknownEntitiesToCompare(_lhs.line, _lhs, _rhs);
+                        char *_x = _IPSF_ObjectRepr(_lhs, 0),
+                             *_y = _IPSF_ObjectRepr(_rhs, 0);
+                        _res.v.constant.Bool.value = !strcmp(_x, _y);
+
+                        OSF_Free(_x);
+                        OSF_Free(_y);
+                    }
+                    break;
                     }
                 }
                 else
@@ -4203,4 +4302,21 @@ void SF_Assert(int cond, char *msg, const char *fname)
 
     OSF_Free(IPSF_ExecIT_fromMod(m, NULL));
     OSF_Free(m);
+}
+
+class_t SF_ClassCopy(class_t cls)
+{
+    class_t o;
+    o.inh_expr_size = 0;
+    o.inherit_count = cls.inherit_count;
+    o.inherits_ = cls.inherits_;
+    o.inherits_exprs = NULL;
+    o.is_native = cls.is_native;
+    o.killed = cls.killed;
+    o.mod = SF_ModuleCopy(cls.mod);
+    o.name = cls.name;
+    o.object_count = 0;
+    o.objects = NULL;
+
+    return o;
 }

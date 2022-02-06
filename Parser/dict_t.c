@@ -112,3 +112,17 @@ expr_t Sf_Dict_Get_fromKey(dict_t *nd, expr_t key)
 
     assert(0 && SF_FMT("Dict has no member %s."));
 }
+
+void Sf_Dict_Set(dict_t *nd, expr_t k, expr_t v)
+{
+    for (size_t i = 0; i < nd->len; i++)
+    {
+        if (_IPSF_ExecLogicalArithmetic(nd->keys[i], LOGICAL_OP_EQEQ, k).v.constant.Bool.value)
+        {
+            nd->vals[i] = v;
+            return;
+        }
+    }
+
+    Sf_Dict_Push(nd, k, v);
+}

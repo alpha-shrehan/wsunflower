@@ -711,3 +711,10 @@ void OSF_RaiseException_NonDefaultArgFollowsVarArgs(int line)
         .type = EXCEPT_NON_DEFAULT_ARGUMENT_FOLLOWS_VAR_ARGS,
         .line = line});
 }
+
+void OSF_RaiseException_InheritMustBeAClass(int line)
+{
+    OSF_SetException((except_t){
+        .type = EXCEPT_INHERIT_MUST_BE_A_CLASS,
+        .line = line});
+}

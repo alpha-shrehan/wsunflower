@@ -9,3 +9,4 @@ dict_t Sf_Dict_New_fromExpr(expr_t *, expr_t *, int);
 void Sf_Dict_Push(dict_t *, expr_t, expr_t);
 expr_t Sf_Dict_Pop(dict_t *, int);
 expr_t Sf_Dict_Get_fromKey(dict_t *, expr_t);
+void Sf_Dict_Set(dict_t *, expr_t, expr_t);

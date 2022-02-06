@@ -10,7 +10,7 @@ expr_t *NativeFunctionWrite(mod_t *mod_ref)
             .constant_type = CONSTANT_TYPE_DTYPE,
             .DType = {
                 .type = DATA_TYPE_NONE}}};
-    
+
     var_t *args_v = IPSF_GetVar_fromMod(mod_ref, "args", NULL);
     assert((args_v->val.type == EXPR_TYPE_CONSTANT && args_v->val.v.constant.constant_type == CONSTANT_TYPE_ARRAY) && SF_FMT("`args' must be an array"));
     expr_t *args = ARRAY(args_v->val.v.constant.Array.index).vals;
@@ -73,7 +73,7 @@ expr_t *NativeFunctionWrite(mod_t *mod_ref)
 
                     if (OSF_GetExceptionState())
                         return __res;
-                    
+
                     printf("%s", x);
 
                     OSF_IntFree(x);
@@ -197,7 +197,7 @@ expr_t *NativeFunctionInt(mod_t *_mod_ref)
                args[0].type == EXPR_TYPE_CONSTANT &&
                args[0].v.constant.constant_type == CONSTANT_TYPE_STRING) &&
            SF_FMT("`num' must be a string"));
-        
+
     if (OSF_GetExceptionState())
         return NULL;
 
@@ -338,6 +338,31 @@ expr_t *NativeFunctionLen(mod_t *mod_ref)
     return __res;
 }
 
+expr_t *NativeFunctionSuper(mod_t *mod_ref)
+{
+    expr_t *__res = OSF_Malloc(sizeof(expr_t));
+    var_t *varg1 = IPSF_GetVar_fromMod(mod_ref, "self", NULL),
+          *varg2 = IPSF_GetVar_fromMod(mod_ref, "cname", NULL);
+
+    class_t *scl = _IPSF_GetClass_fromIntTuple(varg1->val.v.constant.ClassObj.idx),
+            sn = (*PSG_GetClasses())[varg2->val.v.class_expr.index];
+
+    for (size_t i = 0; i < scl->inherit_count; i++)
+    {
+        if (!strcmp(_IPSF_GetClass_fromIntTuple(scl->inherits_[i])->name, sn.name))
+        {
+            *__res = (expr_t){
+                .type = EXPR_TYPE_CONSTANT,
+                .v.constant = {
+                    .constant_type = CONSTANT_TYPE_CLASS_OBJECT,
+                    .ClassObj.idx = scl->inherits_[i]}};
+            break;
+        }
+    }
+
+    return __res;
+}
+
 void SFBuiltIn_AddDefaultFunctions(mod_t *mod)
 {
     fun_t _write_fun = (fun_t){
@@ -472,6 +497,26 @@ void SFBuiltIn_AddDefaultFunctions(mod_t *mod)
 
     int fun_len_mem_idx = PSG_AddFunction(_len_fun);
 
+    fun_t _super_fun = (fun_t){
+        .name = "super",
+        .is_native = 1,
+        .arg_acceptance_count = 2,
+        .v.Native = {
+            .arg_size = 2,
+            .args = OSF_Malloc(2 * sizeof(expr_t)),
+            .f = NativeFunctionSuper},
+        .parent = mod};
+
+    _super_fun.v.Native.args[0] = (expr_t){
+        .type = EXPR_TYPE_VARIABLE,
+        .v.variable = {.name = "self"}};
+
+    _super_fun.v.Native.args[1] = (expr_t){
+        .type = EXPR_TYPE_VARIABLE,
+        .v.variable = {.name = "cname"}};
+
+    int fun_super_mem_idx = PSG_AddFunction(_super_fun);
+
     // write(...) function
     IPSF_ExecVarDecl_fromStmt(mod, (stmt_t){.type = STATEMENT_TYPE_VAR_DECL, .v.var_decl = {.expr = (expr_t *)(expr_t[]){(expr_t){.type = EXPR_TYPE_FUNCTION, .v.function_s = {.index = fun_write_mem_idx, .name = "write"}}}, .name = (expr_t *)(expr_t[]){(expr_t){.type = EXPR_TYPE_VARIABLE, .v.variable.name = "write"}}}}, NULL);
     // input(msg) function
@@ -484,6 +529,8 @@ void SFBuiltIn_AddDefaultFunctions(mod_t *mod)
     IPSF_ExecVarDecl_fromStmt(mod, (stmt_t){.type = STATEMENT_TYPE_VAR_DECL, .v.var_decl = {.expr = (expr_t *)(expr_t[]){(expr_t){.type = EXPR_TYPE_FUNCTION, .v.function_s = {.index = fun_nativeType_mem_idx, .name = "nativeType"}}}, .name = (expr_t *)(expr_t[]){(expr_t){.type = EXPR_TYPE_VARIABLE, .v.variable.name = "nativeType"}}}}, NULL);
     // len(_Val) function
     IPSF_ExecVarDecl_fromStmt(mod, (stmt_t){.type = STATEMENT_TYPE_VAR_DECL, .v.var_decl = {.expr = (expr_t *)(expr_t[]){(expr_t){.type = EXPR_TYPE_FUNCTION, .v.function_s = {.index = fun_len_mem_idx, .name = "len"}}}, .name = (expr_t *)(expr_t[]){(expr_t){.type = EXPR_TYPE_VARIABLE, .v.variable.name = "len"}}}}, NULL);
+    // super(self, cname) function
+    _IPSF_AddVar_toModule(mod, "super", (expr_t){.type = EXPR_TYPE_FUNCTION, .v.function_s = {.index = fun_super_mem_idx, .name = "super"}});
 }
 
 expr_t *Native_Proto_Int__str__(mod_t *mod_ref)
@@ -521,7 +568,7 @@ expr_t *Native_Proto_Array_push(mod_t *mod_ref)
 
     expr_t vmem = v_Member->val,
            vdata = v_Data->val;
-    
+
     assert((
                vmem.type == EXPR_TYPE_CONSTANT &&
                vmem.v.constant.constant_type == CONSTANT_TYPE_ARRAY) &&

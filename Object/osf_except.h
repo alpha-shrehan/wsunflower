@@ -42,7 +42,8 @@ enum SFExceptionMessageCode
     EXCEPT_INVALID_ITERATOR = 30,
     EXCEPT_IMPORTRED_FILE_NOT_FOUND = 31,
     EXCEPT_NON_DEFAULT_ARGUMENT_FOLLOWS_A_DEFAULT_ARG = 32,
-    EXCEPT_NON_DEFAULT_ARGUMENT_FOLLOWS_VAR_ARGS = 33
+    EXCEPT_NON_DEFAULT_ARGUMENT_FOLLOWS_VAR_ARGS = 33,
+    EXCEPT_INHERIT_MUST_BE_A_CLASS = 34
 };
 
 struct _except_s
@@ -230,6 +231,11 @@ struct _except_s
             int algn;
         } ce33;
 
+        struct
+        {
+            int algn;
+        } ce34;
+
     } v;
 };
 
@@ -301,3 +307,4 @@ void OSF_RaiseException_EntityMustBeAString(int, expr_t);
 void OSF_RaiseException_InvalidIterator(int);
 void OSF_RaiseException_NonDefaultArgFollowsADefaultArg(int);
 void OSF_RaiseException_NonDefaultArgFollowsVarArgs(int);
+void OSF_RaiseException_InheritMustBeAClass(int);

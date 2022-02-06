@@ -388,6 +388,8 @@ struct _stmt
         struct
         {
             char *name;
+            expr_t **inherits_;
+            int inherits_count;
             struct _stmt *body;
             int body_size;
         } class_decl;
@@ -523,9 +525,13 @@ struct _class
     int is_native;
     mod_t *mod;
     int object_count; // Acts as object counter for classes, and reference counter for class objects
+    int inherit_count;
     int killed;
 
     struct _class *objects;
+    int_tuple *inherits_;
+    expr_t **inherits_exprs;
+    int inh_expr_size;
 };
 
 typedef struct _class class_t;

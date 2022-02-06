@@ -2068,7 +2068,23 @@ void SF_FrameIT_fromAST(mod_t *mod)
                 else if (!strcmp(tok, "class"))
                 {
                     new_stmt = _PSF_ConstructClassStmt(mod->ast, i + 1, &i);
-                    PSG_AddStmt_toMod(mod, new_stmt);
+                    int append = 1;
+
+                    if (BODY(mod)->body_size)
+                    {
+                        if (BODY(mod)->body[BODY(mod)->body_size - 1].type == STATEMENT_TYPE_DECORATOR)
+                        {
+                            new_stmt.v.class_decl.inherits_ = OSF_Malloc(sizeof(expr_t *));
+                            *(new_stmt.v.class_decl.inherits_) = BODY(mod)->body[BODY(mod)->body_size - 1].v.decorator_stmt.val;
+                            new_stmt.v.class_decl.inherits_count++;
+                            append = 0;
+                        }
+                    }
+
+                    if (!append)
+                        BODY(mod)->body[BODY(mod)->body_size - 1] = new_stmt;
+                    else
+                        PSG_AddStmt_toMod(mod, new_stmt);
                 }
                 else if (!strcmp(tok, "return"))
                 {
@@ -3430,6 +3446,8 @@ stmt_t _PSF_ConstructClassStmt(psf_byte_array_t *arr, int idx, size_t *res_loc_p
     stmt_t ret;
     ret.type = STATEMENT_TYPE_CLASS_DECL;
     ret.v.class_decl.name = NULL;
+    ret.v.class_decl.inherits_count = 0;
+    ret.v.class_decl.inherits_ = NULL;
     psf_byte_array_t *name = _PSF_newByteArray(),
                      *body;
     int gb = 0;
@@ -3545,6 +3563,8 @@ int_tuple PSG_AddClassObject_toClass(class_t _class, int idx)
 {
     class_t *_cref = &((*PSG_GetClasses())[idx]);
 
+    if (_cref->objects == NULL)
+        _cref->objects = OSF_Malloc(sizeof(class_t));
     if (_cref->object_count)
         _cref->objects = OSF_Realloc(_cref->objects, (_cref->object_count + 1) * sizeof(class_t));
 
