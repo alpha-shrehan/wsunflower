@@ -7,3 +7,32 @@ class object
             self.ref_count[oref] += 1
         else
             self.ref_count[oref] = 1
+
+fun float(s)
+    iv = 0
+    fv = 0
+    vv = {'0': 0, '1': 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9}
+    sign_is_plus = True
+    decimal = False
+    fr_counter = 1
+
+    for d in s
+        if d == '-'
+            sign_is_plus = False
+        else
+            if d == '.'
+                decimal = True
+            else
+                if decimal
+                    fv = (fv * 10) + vv[d]
+                    fr_counter = fr_counter * 10
+                else
+                    iv = iv * 10 + vv[d]
+    
+    if decimal
+        iv = iv + (fv / fr_counter)
+    
+    if not sign_is_plus
+        iv = iv * (-1)
+    
+    return iv

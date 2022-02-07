@@ -1,4 +1,4 @@
-# Converts Sunflower dictionary to string
+from std.dict import *
 
 class Encoder
     fun __main__(self)
@@ -6,7 +6,7 @@ class Encoder
 
     fun encode(self, d)
         res = "{"
-        for i, j in d.items():
-            res += "\"" + i + "\":\"" + j + "\","
-        res[len(res) - 1] = "}"
+        for i, j in d
+            res += '\"' + i + '\": ' + j.__str__() + ', '
+        res = res[0 to len(res) - 2] + "}"
         return res

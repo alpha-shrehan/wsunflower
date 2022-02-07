@@ -1,4 +1,6 @@
 # Converts String to Sunflower dictionary
+from std.string import *
+from std import float
 
 class Decoder
     fun __main__(self)
@@ -8,13 +10,13 @@ class Decoder
         s = s[1 to len(s) - 1]
         s = s.split(',')
         d = {}
-        s = [x.split(':', count = 1) for x in s]
+        s = [x.split(':') for x in s][0]
         for i in s
             i[0] = i[0].strip()
+            assert i[0][0] == '"' and i[0][len(i[0]) - 1] == '"', '[json] Syntax Error'
             i[0] = i[0][1 to len(i[0]) - 1]
             i[1] = i[1].strip()
             val = None
-            
             switch i[1]
                 case 'true'
                     val = True
@@ -22,16 +24,15 @@ class Decoder
                     val = False
                 case 'null'
                     val = None
-                case in ['[', '{']:
+                case in ['[', '{']
                     val = self.decode(i[1])
-                case in ['"', "'"]:
+                case .startswith('"')
                     val = i[1][1 to len(i[1]) - 1]
-                case i[1].isnumber()
+                case .isnumber()
                     val = int(i[1])
-                case i[1].isfloat():
+                case .isfloat()
                     val = float(i[1])
                 default
                     assert False, 'Invalid value: ' + i[1]
-            
             d[i[0]] = val
         return d

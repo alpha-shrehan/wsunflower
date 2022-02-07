@@ -45,3 +45,31 @@ fun ''.capitalize(self)
         return self
     
     return self[0].upper() + self[1 to len(self)]
+
+fun ''.strip(self)
+    while self[0] == ' '
+        self = self[1 to len(self)]
+    while self[len(self) - 1] == ' '
+        self = self[0 to len(self) - 1]
+    return self
+
+fun ''.isnumber(self)
+    n = True
+    for i in self
+        if not i in '1234567890'
+            n = False
+    return n
+
+fun ''.isfloat(self)
+    n = True
+    saw_dot = False
+    for i in self
+        if i == '.' and not saw_dot
+            saw_dot = True
+        else
+            if not i in '1234567890'
+                n = False
+    return n and saw_dot
+
+fun ''.startswith(self, s)
+    return self[0 to len(s)] == s

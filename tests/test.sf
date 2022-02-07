@@ -1,18 +1,5 @@
-import std
-from std.dict import *
+import json
 
-@std.object
-class Base
-    fun __main__(self)
-        super(self, std.object).__main__(self)
-
-@std.object
-class Other
-    fun __main__(self)
-        super(self, std.object).__main__(self)
-
-x = Base()
-y = Other()
-z = Other()
-a = Base()
-write(std.object.ref_count)
+x = json.Encoder()
+y = json.Decoder()
+write(y.decode('{"x": 10.0, "y": 20.0, "z": null, "a": "Test"}'))

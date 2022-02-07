@@ -322,6 +322,11 @@ void OSF_RaiseExceptionMessage(except_t *e)
         printf("       Non default argument follows variable arguments.\n");
     }
     break;
+    case EXCEPT_STRING_IS_IMMUTABLE:
+    {
+        printf("       String is immutable.\n");
+    }
+    break;
     default:
         printf("       Asynchronous exception not defined yet. (Code: %d)\n", e->type);
         break;
@@ -716,5 +721,12 @@ void OSF_RaiseException_InheritMustBeAClass(int line)
 {
     OSF_SetException((except_t){
         .type = EXCEPT_INHERIT_MUST_BE_A_CLASS,
+        .line = line});
+}
+
+void OSF_RaiseException_StringIsImmutable(int line)
+{
+    OSF_SetException((except_t){
+        .type = EXCEPT_STRING_IS_IMMUTABLE,
         .line = line});
 }

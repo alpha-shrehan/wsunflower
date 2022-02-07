@@ -337,6 +337,10 @@ psf_byte_array_t *_PSF_New_AST_FromString(const char *src)
                     case '\\':
                         str[str_len] = '\\';
                         break;
+                    case '\'':
+                    case '\"':
+                        str[str_len] = next_c;
+                        break;
                     default:
                         break;
                     }

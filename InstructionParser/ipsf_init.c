@@ -298,62 +298,79 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                 {
                     expr_t idx_val = ARRAY(cond_red.v.constant.Array.index).vals[j];
 
-                    switch (idx_val.v.constant.constant_type)
+                    if (curr.v.for_stmt.var_size > 1)
                     {
-                    case CONSTANT_TYPE_ARRAY:
-                    {
-                        expr_t *arr_ref = ARRAY(idx_val.v.constant.Array.index).vals;
-                        int sz_ref = ARRAY(idx_val.v.constant.Array.index).len;
-
-                        if (curr.v.for_stmt.var_size == sz_ref)
+                        switch (idx_val.v.constant.constant_type)
                         {
-                            for (size_t k = 0; k < sz_ref; k++)
-                            {
-                                _IPSF_AddVar_toModule(
-                                    f_mod,
-                                    curr.v.for_stmt.vars[k].name,
-                                    arr_ref[k]);
+                        case CONSTANT_TYPE_ARRAY:
+                        {
+                            expr_t *arr_ref = ARRAY(idx_val.v.constant.Array.index).vals;
+                            int sz_ref = ARRAY(idx_val.v.constant.Array.index).len;
 
-                                _IPSF_AddVar_toModule(
-                                    f_cache_mod,
-                                    curr.v.for_stmt.vars[k].name,
-                                    arr_ref[k]);
+                            if (curr.v.for_stmt.var_size == sz_ref)
+                            {
+                                for (size_t k = 0; k < sz_ref; k++)
+                                {
+                                    _IPSF_AddVar_toModule(
+                                        f_mod,
+                                        curr.v.for_stmt.vars[k].name,
+                                        arr_ref[k]);
+
+                                    _IPSF_AddVar_toModule(
+                                        f_cache_mod,
+                                        curr.v.for_stmt.vars[k].name,
+                                        arr_ref[k]);
+                                }
+                            }
+                            else if (curr.v.for_stmt.var_size < sz_ref)
+                            {
+                                for (size_t k = 0; k < curr.v.for_stmt.var_size; k++)
+                                {
+                                    _IPSF_AddVar_toModule(
+                                        f_mod,
+                                        curr.v.for_stmt.vars[k].name,
+                                        arr_ref[k]);
+
+                                    _IPSF_AddVar_toModule(
+                                        f_cache_mod,
+                                        curr.v.for_stmt.vars[k].name,
+                                        arr_ref[k]);
+                                }
+                            }
+                            else if (curr.v.for_stmt.var_size > sz_ref)
+                            {
+                                for (size_t k = 0; k < sz_ref; k++)
+                                {
+                                    _IPSF_AddVar_toModule(
+                                        f_mod,
+                                        curr.v.for_stmt.vars[k].name,
+                                        arr_ref[k]);
+
+                                    _IPSF_AddVar_toModule(
+                                        f_cache_mod,
+                                        curr.v.for_stmt.vars[k].name,
+                                        arr_ref[k]);
+                                }
                             }
                         }
-                        else if (curr.v.for_stmt.var_size < sz_ref)
-                        {
-                            for (size_t k = 0; k < curr.v.for_stmt.var_size; k++)
-                            {
-                                _IPSF_AddVar_toModule(
-                                    f_mod,
-                                    curr.v.for_stmt.vars[k].name,
-                                    arr_ref[k]);
+                        break;
 
-                                _IPSF_AddVar_toModule(
-                                    f_cache_mod,
-                                    curr.v.for_stmt.vars[k].name,
-                                    arr_ref[k]);
-                            }
+                        default:
+                        {
+                            _IPSF_AddVar_toModule(
+                                f_mod,
+                                curr.v.for_stmt.vars[0].name,
+                                idx_val);
+
+                            _IPSF_AddVar_toModule(
+                                f_cache_mod,
+                                curr.v.for_stmt.vars[0].name,
+                                idx_val);
                         }
-                        else if (curr.v.for_stmt.var_size > sz_ref)
-                        {
-                            for (size_t k = 0; k < sz_ref; k++)
-                            {
-                                _IPSF_AddVar_toModule(
-                                    f_mod,
-                                    curr.v.for_stmt.vars[k].name,
-                                    arr_ref[k]);
-
-                                _IPSF_AddVar_toModule(
-                                    f_cache_mod,
-                                    curr.v.for_stmt.vars[k].name,
-                                    arr_ref[k]);
-                            }
+                        break;
                         }
                     }
-                    break;
-
-                    default:
+                    else
                     {
                         _IPSF_AddVar_toModule(
                             f_mod,
@@ -364,8 +381,6 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                             f_cache_mod,
                             curr.v.for_stmt.vars[0].name,
                             idx_val);
-                    }
-                    break;
                     }
 
                     // Add variables as a check afterhand
@@ -990,7 +1005,8 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                 // printf("[%s]\n", curr.v.switch_case.cases[i].condition->v.constant.String.value);
                 // PSG_PrintExprType(red_cond.type);
                 // PSG_PrintExprType(curr_case_red.type);
-                if (!curr.v.switch_case.cases[j].is_case_in)
+                if (!curr.v.switch_case.cases[j].is_case_in &&
+                    !curr.v.switch_case.cases[j].is_case_dot)
                 {
                     expr_t _v = _IPSF_ExecLogicalArithmetic(red_cond, LOGICAL_OP_EQEQ, curr_case_red);
 
@@ -1030,8 +1046,6 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                 }
                 else
                 {
-                    if (OSF_GetExceptionState())
-                        goto __label_abrupt_end_IPSF_ExecIT_fromMod;
                     if (_PSF_EntityIsTrue(curr_case_red))
                     {
                         // mod_t *m = SF_CreateModule(mod->type, NULL);
@@ -1195,7 +1209,8 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
         break;
         case CONSTANT_TYPE_DICT:
         {
-            if (!DICT(expr->v.constant.Dict.index).evaluated)
+            if (!DICT(expr->v.constant.Dict.index).evaluated &&
+                DICT(expr->v.constant.Dict.index).len)
             {
                 expr_t *cpy_keys = DICT(expr->v.constant.Dict.index).keys;
                 expr_t *cpy_reds_k = OSF_Malloc(DICT(expr->v.constant.Dict.index).len * sizeof(expr_t));
@@ -1220,7 +1235,6 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
                 }
 
                 ex_cpy.v.constant.Dict.index = PSG_AddDict(Sf_Dict_New_fromExpr(cpy_reds_k, cpy_reds, DICT(expr->v.constant.Dict.index).len));
-
                 PSG_GetDict_Ptr(ex_cpy.v.constant.Dict.index)->evaluated = 1;
             }
         }
@@ -2627,6 +2641,13 @@ IPSF_ExecVarDecl_fromStmt(mod_t *mod, stmt_t stmt, int *err)
                 Sf_Dict_Set(_d_conf, idx_red, reduced_val_cpy);
             }
             break;
+            case CONSTANT_TYPE_STRING:
+            {
+                OSF_RaiseException_StringIsImmutable(stmt.line);
+                mod->parent = pres;
+                return NULL;
+            }
+            break;
 
             default:
                 break;
@@ -2800,6 +2821,12 @@ char *_IPSF_ObjectRepr(expr_t expr, int recur)
             _Res = OSF_Malloc(256 * sizeof(char));
             dy = 1;
             sprintf(_Res, "%f", expr.v.constant.Float.value);
+
+            while (_Res[strlen(_Res) - 1] == '0')
+                _Res[strlen(_Res) - 1] = '\0';
+            
+            if (_Res[strlen(_Res) - 1] == '.')
+                _Res[strlen(_Res)] = '0';
         }
         break;
         case CONSTANT_TYPE_STRING:

@@ -429,6 +429,7 @@ struct _stmt
                 struct _stmt *body;
                 int body_size;
                 int is_case_in; // If 1, check for True, not ==
+                int is_case_dot; // If 1, check for True, not ==
             } *cases, def_case, sz_strct; // condition is NULL for def_case
             int cases_count;
             
