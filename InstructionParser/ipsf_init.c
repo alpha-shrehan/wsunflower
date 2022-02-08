@@ -2511,14 +2511,34 @@ IPSF_ExecVarDecl_fromStmt(mod_t *mod, stmt_t stmt, int *err)
     {
         int _v_idx = -1;
 
-        for (size_t i = 0; i < mod->var_holds_size; i++)
+        int i = 0, j = mod->var_holds_size - 1;
+
+        while (i <= j)
         {
             if (!strcmp(mod->var_holds[i].name, stmt.v.var_decl.name->v.variable.name))
             {
                 _v_idx = i;
                 break;
             }
+
+            if (!strcmp(mod->var_holds[j].name, stmt.v.var_decl.name->v.variable.name))
+            {
+                _v_idx = j;
+                break;
+            }
+
+            i++;
+            j--;
         }
+
+        // for (size_t i = 0; i < mod->var_holds_size; i++)
+        // {
+        //     if (!strcmp(mod->var_holds[i].name, stmt.v.var_decl.name->v.variable.name))
+        //     {
+        //         _v_idx = i;
+        //         break;
+        //     }
+        // }
 
         if (_v_idx == -1)
         {
@@ -2722,15 +2742,35 @@ var_t *IPSF_GetVar_fromClass(class_t *cls, const char *name, int *err)
 
     if (mv != NULL)
         return mv;
+    
+    int i = 0, j = cls->inherit_count - 1;
 
-    for (size_t i = 0; i < cls->inherit_count; i++)
+    while (i <= j)
     {
         class_t *nest_ = _IPSF_GetClass_fromIntTuple(cls->inherits_[i]);
         var_t *mv = IPSF_GetVar_fromMod(nest_->mod, name, err);
 
         if (mv != NULL)
             return mv;
+        
+        nest_ = _IPSF_GetClass_fromIntTuple(cls->inherits_[j]);
+        mv = IPSF_GetVar_fromMod(nest_->mod, name, err);
+
+        if (mv != NULL)
+            return mv;
+
+        i++;
+        j--;
     }
+
+    // for (size_t i = 0; i < cls->inherit_count; i++)
+    // {
+    //     class_t *nest_ = _IPSF_GetClass_fromIntTuple(cls->inherits_[i]);
+    //     var_t *mv = IPSF_GetVar_fromMod(nest_->mod, name, err);
+
+    //     if (mv != NULL)
+    //         return mv;
+    // }
 
     if (err != NULL)
         *err = IPSF_ERR_VAR_NOT_FOUND;

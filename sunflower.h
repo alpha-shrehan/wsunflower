@@ -11,6 +11,7 @@
 #include <Object/osf_cmd.h>
 
 // Parser
+#include <Parser/hashtable.h>
 #include <Parser/psf_gen_ast.h>
 #include <Parser/psf_gen_ast_preprocessor.h>
 #include <Parser/psf_gen_inst_ast.h>

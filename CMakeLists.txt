@@ -24,6 +24,7 @@ add_library(
     "./Parser/psf_gen_ast.c"
     "./Parser/psf_gen_ast_preprocessor.c"
     "./Parser/psf_gen_inst_ast.c"
+    "./Parser/hashtable.c"
     "./Parser/str.c"
     "./sunflower.c"
 )

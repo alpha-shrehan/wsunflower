@@ -21,3 +21,10 @@ ifeq ($(OS),Windows_NT)
 else
 	gdb --args ./build/tests/test_exe tests/test.sf
 endif
+
+rht:
+ifeq ($(OS),Windows_NT)
+	.\build\tests\hashtest\hashtest_exe
+else
+	./build/tests/hashtest/hashtest_exe
+endif

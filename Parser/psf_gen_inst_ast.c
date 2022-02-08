@@ -197,8 +197,8 @@ expr_t SF_FrameExpr_fromByte(psf_byte_array_t *arr)
 
     if (ret_now)
         return ret;
-    
-    gb = 0;    
+
+    gb = 0;
     for (int i = 0; i < arr->size; i++)
     {
         psf_byte_t curr = arr->nodes[i];
@@ -271,7 +271,7 @@ expr_t SF_FrameExpr_fromByte(psf_byte_array_t *arr)
     if (ret_now)
         return ret;
 
-    gb = 0;    
+    gb = 0;
     for (int i = 0; i < arr->size; i++)
     {
         psf_byte_t curr = arr->nodes[i];
@@ -4123,12 +4123,12 @@ stmt_t _PSF_ConstructSwitchStmt(psf_byte_array_t *arr, int idx, size_t *end_ptr)
             else if (saw_case_dot)
             {
                 psf_byte_array_t *_np = _PSF_newByteArray();
-                
+
                 for (size_t j = 0; j < _cond_arr->size; j++)
                     PSF_AST_ByteArray_AddNode(_np, _cond_arr->nodes[j]);
                 for (size_t j = 0; j < cc_arr->size; j++)
                     PSF_AST_ByteArray_AddNode(_np, cc_arr->nodes[j]);
-                
+
                 *case_cond = SF_FrameExpr_fromByte(_np);
 
                 OSF_Free(_np->nodes);
