@@ -203,8 +203,12 @@ expr_t *NativeFunctionInt(mod_t *_mod_ref)
 
     char *get_str = args[0].v.constant.String.value;
     get_str++;
+    char p = get_str[strlen(get_str) - 1];
     get_str[strlen(get_str) - 1] = '\0';
     int i_res = atoi(get_str);
+
+    get_str--;
+    get_str[strlen(get_str)] = p;
 
     OSF_Free(args);
 
@@ -555,7 +559,9 @@ expr_t *Native_Proto_Int__str__(mod_t *mod_ref)
         .v = {
             .constant = {
                 .constant_type = CONSTANT_TYPE_STRING,
-                .String = resorepr}}};
+                .String = OSF_strdup(resorepr)}}};
+    
+    OSF_Free(resorepr);
 
     return __res;
 }
@@ -637,7 +643,9 @@ expr_t *Native_Proto_Array__str__(mod_t *mod_ref)
         .v = {
             .constant = {
                 .constant_type = CONSTANT_TYPE_STRING,
-                .String = resorepr}}};
+                .String = OSF_strdup(resorepr)}}};
+    
+    OSF_Free(resorepr);
 
     return __res;
 }

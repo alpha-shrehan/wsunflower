@@ -8,7 +8,7 @@
 #include <stdarg.h>
 #include <Object/osf_mem.h>
 #include <Parser/psf_gen_ast.h>
-#include <Parser/hashtable.h>
+#include <Parser/trie.h>
 
 enum ExprTypeEnum
 {

@@ -20,9 +20,14 @@ class range
         self._it_instance = self._min
     
     fun operator for..in(self)
-        if self._it_instance > self._max - self._step
-            self._it_instance = self._min
-            return None
+        if self._max > self._min
+            if self._it_instance > self._max - self._step
+                self._it_instance = self._min
+                return None
+        else
+            if self._it_instance < self._max - self._step
+                self._it_instance = self._min
+                return None
         
         val = self._it_instance
         self._it_instance = self._it_instance + self._step

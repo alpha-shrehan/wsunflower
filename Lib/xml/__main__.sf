@@ -1,0 +1,104 @@
+class XMLNode
+    tag_name = ''
+    attr_hash = {}
+    children = []
+    
+    fun __main__(self, tag_name = '', attr_hash = {}, children = [])
+        self.tag_name = tag_name
+        self.attr_hash = attr_hash
+        self.children = children
+    
+    fun add_child(self, child)
+        self.children.push(child)
+    
+    fun add_attr(self, key, value)
+        self.attr_hash[key] = value
+    
+    fun get_attr(self, attr_name)
+        return self.attr_hash[attr_name]
+    
+    fun get_children(self)
+        return self.children
+    
+class XMLLexer
+    v = ''
+    tree = None
+
+    fun __main__(self, val)
+        self.v = val
+        self.tree = []
+        self.__lex__()
+    
+    fun __lex__(self)
+        i = 0
+        while i < len(v)
+            if v[i] == '<'
+                tname = ''
+                for j in i + 1 to len(v)
+                    if v[j] == '>'
+                        break
+                    tname += v[j]
+                end_idx = -1
+                st_idx = j + 1
+                for j in j + 1 to len(v)
+                    if v[j] == '<' and v[j + 1] == '/'
+                        tns = ''
+                        for k in j + 2 to len(v)
+                            if v[k] == '>'
+                                break
+                            tns += v[k]
+                        if tns == tname
+                            end_idx = j
+                            break
+                
+                tname = tname.split(' ')[0]
+                rest = tname.split(' ')
+                rest = ' '.join(rest[1 to len(rest)])
+                attr_hash = self.__gen_attr__(rest)
+                node = XMLNode(tname, attr_hash)
+                node.children = XMLLexer(v[st_idx to end_idx]).tree
+                self.tree.push(node)
+
+            i += 1
+
+    
+    fun __gen_attr__(self, s)
+        attr_hash = {}
+        i = 0
+        while i < len(s)
+            if s[i] == ' '
+                break
+            key = ''
+            for j in i + 1 to len(s)
+                if s[j] == '='
+                    break
+                key += s[j]
+            value = ''
+            for j in j + 2 to len(s)
+                s[j] == " "
+                    break
+                value += s[j]
+            attr_hash[key] = value
+            i = j + 1
+        return attr_hash
+
+class XMLTree
+    v = ''
+    lres = None
+
+    fun __main__(self, val)
+        self.v = val
+        self.lres = XMLLexer(self.v).tree
+    
+    fun get_root(self)
+        return self.lres[0]
+    
+    fun __str__(self)
+        return self.lres
+    
+    __stdout__ = __str__
+    
+    
+
+fun __main__(val)
+    return XMLTree(val)

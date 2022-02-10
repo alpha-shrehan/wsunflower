@@ -4,22 +4,16 @@
 
 OSF_MemTree *OSF_MainMemTree = NULL;
 unsigned long OSF_LastHeapSize = 0;
-unsigned long OSF_FreeCalled = 0;
-unsigned long OSF_MallocCalled = 0;
-unsigned long OSF_ReallocCalled = 0;
 
 void __OSF_MemInit(const char *__fname, int __line)
 {
     OSF_MainMemTree = (OSF_MemTree *)GC_MALLOC(sizeof(OSF_MemTree));
     OSF_MainMemTree->root = (OSF_MemBlock *)GC_MALLOC(sizeof(OSF_MemBlock));
     OSF_MainMemTree->size = 0;
-
-    OSF_DetermineHeapSize();
 }
 
 void *__OSF_Malloc(size_t size, const char *__fname, int __line)
 {
-    OSF_MallocCalled++;
     void *ptr = GC_MALLOC(size);
     if (ptr == NULL)
     {
@@ -59,19 +53,11 @@ void *__OSF_Malloc(size_t size, const char *__fname, int __line)
         OSF_MainMemTree->size++;
     }
 
-    OSF_DetermineHeapSize();
-#if __DOSF_PRINT_HEAP_TRACE__ == 1
-    fprintf(stdout, "[GC_MALLOC] ");
-    OSF_PrintHeapSize();
-    fprintf(stdout, " in function: %s at line %d\n", __fname, __line);
-#endif
-
     return ptr;
 }
 
 void *__OSF_Realloc(void *ptr, size_t size, const char *__fname, int __line)
 {
-    OSF_ReallocCalled++;
     void *new_ptr = GC_REALLOC(ptr, size);
     if (new_ptr == NULL)
     {
@@ -161,8 +147,6 @@ void *__OSF_Realloc(void *ptr, size_t size, const char *__fname, int __line)
         copyOsfMemBlock = NULL;
     }
 
-    OSF_DetermineHeapSize();
-
     return new_ptr;
 }
 
@@ -184,7 +168,6 @@ void *__OSF_Calloc(size_t num, size_t size, const char *__fname, int __line)
     OSF_MainMemTree->root[OSF_MainMemTree->size].create_type = MEM_BLOCK_CREATE_TYPE_CALLOC;
 
     OSF_MainMemTree->size++;
-    OSF_DetermineHeapSize();
 
     return ptr;
 }
@@ -202,7 +185,6 @@ int __OSF_MemorySafeToFree(void *ptr, const char *__fname, int __line)
 
 void __OSF_Free(void *ptr, const char *__fname, int __line)
 {
-    OSF_FreeCalled++;
     if (ptr == NULL)
     {
         // Base case
@@ -274,13 +256,6 @@ void __OSF_Free(void *ptr, const char *__fname, int __line)
     copyOsfMemBlock->root = NULL;
     GC_FREE(copyOsfMemBlock);
     copyOsfMemBlock = NULL;
-
-    OSF_DetermineHeapSize();
-#if __DOSF_PRINT_HEAP_TRACE__ == 1
-    fprintf(stdout, "[GC_FREE] ");
-    OSF_PrintHeapSize();
-    fprintf(stdout, " in function: %s at line %d\n", __fname, __line);
-#endif
 }
 
 void *__OSF_Memcpy(void *dest, const void *src, size_t size, const char *__fname, int __line)

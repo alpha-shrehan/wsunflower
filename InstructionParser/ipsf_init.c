@@ -217,6 +217,7 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
 
             while (_PSF_EntityIsTrue(cond_r))
             {
+                // printf("%d\n", GC_get_heap_size());
                 BODY(w_mod)->body = curr.v.while_stmt.body;
                 BODY(w_mod)->body_size = curr.v.while_stmt.body_size;
                 // printf("[x]"); OSF_PrintHeapSize(); printf("\n");
@@ -243,6 +244,7 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                 if (doBreak)
                     break;
                 // printf("[y]"); OSF_PrintHeapSize(); printf("\n");
+                // printf("%d\n", GC_get_heap_size());
             }
 
             SF_Module_safeDelete(w_mod);
@@ -264,6 +266,7 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
 
             mod_t *f_mod = /* SF_CreateModule(mod->type, NULL) */ mod;
             mod_t *f_cache_mod = SF_CreateModule(mod->type, NULL);
+            OSF_Free(BODY(f_cache_mod)->body);
             // f_mod->parent = mod;
             // OSF_Free(BODY(f_mod)->body);
 
@@ -434,13 +437,10 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                         doBreak = 1;
                     }
 
-                    SF_Module_safeDelete(f_cache_mod);
+                    // SF_Module_safeDelete(f_cache_mod);
+                    OSF_Free(f_cache_mod->var_holds);
                     f_cache_mod->var_holds = OSF_Malloc(sizeof(var_t));
                     f_cache_mod->var_holds_size = 0;
-
-                    // SF_Module_safeDelete(f_mod);
-                    // f_mod->var_holds = OSF_Malloc(sizeof(var_t));
-                    // f_mod->var_holds_size = 0;
 
                     if (doBreak)
                         break;
@@ -523,6 +523,11 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                                     f_mod,
                                     curr.v.for_stmt.vars[k].name,
                                     arr_ref[k]);
+
+                                _IPSF_AddVar_toModule(
+                                    f_cache_mod,
+                                    curr.v.for_stmt.vars[k].name,
+                                    arr_ref[k]);
                             }
                         }
                         else if (curr.v.for_stmt.var_size < sz_ref)
@@ -533,6 +538,11 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                                     f_mod,
                                     curr.v.for_stmt.vars[k].name,
                                     arr_ref[k]);
+
+                                _IPSF_AddVar_toModule(
+                                    f_cache_mod,
+                                    curr.v.for_stmt.vars[k].name,
+                                    arr_ref[k]);
                             }
                         }
                         else if (curr.v.for_stmt.var_size > sz_ref)
@@ -541,6 +551,11 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                             {
                                 _IPSF_AddVar_toModule(
                                     f_mod,
+                                    curr.v.for_stmt.vars[k].name,
+                                    arr_ref[k]);
+
+                                _IPSF_AddVar_toModule(
+                                    f_cache_mod,
                                     curr.v.for_stmt.vars[k].name,
                                     arr_ref[k]);
                             }
@@ -554,6 +569,11 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                             f_mod,
                             curr.v.for_stmt.vars[0].name,
                             idx_val);
+
+                        _IPSF_AddVar_toModule(
+                            f_cache_mod,
+                            curr.v.for_stmt.vars[0].name,
+                            idx_val);
                     }
                     break;
                     }
@@ -562,7 +582,7 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                     for (size_t k = 0; k < curr.v.for_stmt.var_size; k++)
                     {
                         int err_c = IPSF_OK;
-                        var_t *pv_v = IPSF_GetVar_fromMod(f_mod, curr.v.for_stmt.vars[k].name, &err_c);
+                        var_t *pv_v = IPSF_GetVar_fromMod(f_cache_mod /* less to search */, curr.v.for_stmt.vars[k].name, &err_c);
 
                         /**
                          * @brief Variables who could not fit to data
@@ -602,15 +622,15 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                         doBreak = 1;
                     }
 
-                    // SF_Module_safeDelete(f_mod);
-                    // f_mod->var_holds = OSF_Malloc(sizeof(var_t));
-                    // f_mod->var_holds_size = 0;
+                    SF_Module_safeDelete(f_cache_mod);
+                    f_cache_mod->var_holds = OSF_Malloc(sizeof(var_t));
+                    f_cache_mod->var_holds_size = 0;
 
                     if (doBreak)
                         break;
 
                     OSF_Free(_itc_val);
-                    _itc_val = _IPSF_CallFunction(_get_iter, (expr_t *)(expr_t[]){cond_red}, 1, _c_ref->mod->parent);
+                    _itc_val = _IPSF_CallFunction(_get_iter, &cond_red, 1, _c_ref->mod != NULL ? _c_ref->mod->parent : mod);
 
                     if (OSF_GetExceptionState())
                         goto __label_abrupt_end_IPSF_ExecIT_fromMod;
@@ -1661,21 +1681,43 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
         if (OSF_GetExceptionState())
             goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
 
-        for (int j = lhs_red.v.constant.Int.value;
-             j < rhs_red.v.constant.Int.value;
-             j += step_count)
+        if (lhs_red.v.constant.Int.value < rhs_red.v.constant.Int.value)
         {
-            if (ARRAY(sres.v.constant.Array.index).len)
-                ARRAY(sres.v.constant.Array.index).vals = OSF_Realloc(
-                    ARRAY(sres.v.constant.Array.index).vals,
-                    (ARRAY(sres.v.constant.Array.index).len + 1) *
-                        sizeof(expr_t));
-            ARRAY(sres.v.constant.Array.index).vals[(PSG_GetArray_Ptr(sres.v.constant.Array.index)->len)++] = (expr_t){
-                .type = EXPR_TYPE_CONSTANT,
-                .v.constant = {
-                    .constant_type = CONSTANT_TYPE_INT,
-                    .Int.value = j},
-                .line = expr->line};
+            for (int j = lhs_red.v.constant.Int.value;
+                 j < rhs_red.v.constant.Int.value;
+                 j += step_count)
+            {
+                if (ARRAY(sres.v.constant.Array.index).len)
+                    ARRAY(sres.v.constant.Array.index).vals = OSF_Realloc(
+                        ARRAY(sres.v.constant.Array.index).vals,
+                        (ARRAY(sres.v.constant.Array.index).len + 1) *
+                            sizeof(expr_t));
+                ARRAY(sres.v.constant.Array.index).vals[(PSG_GetArray_Ptr(sres.v.constant.Array.index)->len)++] = (expr_t){
+                    .type = EXPR_TYPE_CONSTANT,
+                    .v.constant = {
+                        .constant_type = CONSTANT_TYPE_INT,
+                        .Int.value = j},
+                    .line = expr->line};
+            }
+        }
+        else
+        {
+            for (int j = lhs_red.v.constant.Int.value;
+                 j > rhs_red.v.constant.Int.value;
+                 j += step_count)
+            {
+                if (ARRAY(sres.v.constant.Array.index).len)
+                    ARRAY(sres.v.constant.Array.index).vals = OSF_Realloc(
+                        ARRAY(sres.v.constant.Array.index).vals,
+                        (ARRAY(sres.v.constant.Array.index).len + 1) *
+                            sizeof(expr_t));
+                ARRAY(sres.v.constant.Array.index).vals[(PSG_GetArray_Ptr(sres.v.constant.Array.index)->len)++] = (expr_t){
+                    .type = EXPR_TYPE_CONSTANT,
+                    .v.constant = {
+                        .constant_type = CONSTANT_TYPE_INT,
+                        .Int.value = j},
+                    .line = expr->line};
+            }
         }
 
         *RES = sres;
@@ -2742,7 +2784,7 @@ var_t *IPSF_GetVar_fromClass(class_t *cls, const char *name, int *err)
 
     if (mv != NULL)
         return mv;
-    
+
     int i = 0, j = cls->inherit_count - 1;
 
     while (i <= j)
@@ -2752,7 +2794,7 @@ var_t *IPSF_GetVar_fromClass(class_t *cls, const char *name, int *err)
 
         if (mv != NULL)
             return mv;
-        
+
         nest_ = _IPSF_GetClass_fromIntTuple(cls->inherits_[j]);
         mv = IPSF_GetVar_fromMod(nest_->mod, name, err);
 
@@ -2864,7 +2906,7 @@ char *_IPSF_ObjectRepr(expr_t expr, int recur)
 
             while (_Res[strlen(_Res) - 1] == '0')
                 _Res[strlen(_Res) - 1] = '\0';
-            
+
             if (_Res[strlen(_Res) - 1] == '.')
                 _Res[strlen(_Res)] = '0';
         }
@@ -2888,9 +2930,11 @@ char *_IPSF_ObjectRepr(expr_t expr, int recur)
             {
                 char *_cop = _IPSF_ObjectRepr(ARRAY(expr.v.constant.Array.index).vals[j], 1);
                 _Res = OSF_Realloc(_Res, (strlen(_Res) + strlen(_cop) + 4) * sizeof(char));
-                sprintf(_Res, "%s%s", _Res, _cop);
+                sprintf(_Res, "%s%s", _Res, OSF_strdup(_cop));
                 if (j != (ARRAY(expr.v.constant.Array.index).len) - 1)
                     strcat(_Res, ", ");
+
+                OSF_Free(_cop);
             }
             strcat(_Res, "]");
         }
@@ -3808,7 +3852,6 @@ expr_t *_IPSF_CallFunction(fun_t fun_s, expr_t *args, int arg_size, mod_t *mod)
 
     if (OSF_GetExceptionState())
         return RES;
-    ;
 
     fun_mod->parent = fun_s.parent;
     _cargs_without_voids = _PSF_RemoveVoidsFromExprArray(_collectivise_args, _collectivise_args_count, &_cargs_without_voids_size);
@@ -3931,8 +3974,8 @@ expr_t *_IPSF_CallFunction(fun_t fun_s, expr_t *args, int arg_size, mod_t *mod)
     OSF_Free(_cargs_without_voids);
     OSF_Free(_collectivise_args);
 
-    // SF_Module_safeDelete(fun_mod);
-    // OSF_Free(fun_mod);
+    SF_Module_safeDelete(fun_mod);
+    OSF_Free(fun_mod);
 
     return RES;
 }

@@ -22,9 +22,9 @@ else
 	gdb --args ./build/tests/test_exe tests/test.sf
 endif
 
-rht:
+rt:
 ifeq ($(OS),Windows_NT)
-	.\build\tests\hashtest\hashtest_exe
+	.\build\tests\trietest\trietest_exe
 else
-	./build/tests/hashtest/hashtest_exe
+	./build/tests/trietest/trietest_exe
 endif

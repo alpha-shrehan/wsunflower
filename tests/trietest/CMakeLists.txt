@@ -1,4 +1,4 @@
-add_executable(hashtest_exe test.c)
+add_executable(trietest_exe test.c)
 include_directories(../../)
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -8,5 +8,5 @@ elseif (CMAKE_BUILD_TYPE STREQUAL "Release")
 endif()
 
 include_directories(../../Include/gc)
-target_link_libraries(hashtest_exe sunflower)
-add_test(hashtest hashtest_exe)
+target_link_libraries(trietest_exe sunflower)
+add_test(trietest trietest_exe)

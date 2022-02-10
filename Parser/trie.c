@@ -1,9 +1,9 @@
-#include "hashtable.h"
+#include "trie.h"
 #include <Object/osf_mem.h>
 
-HashTable Hash_new(char *c, HashTable *mems, int mcount, int end)
+Trie Trie_new(char *c, Trie *mems, int mcount, int end)
 {
-    HashTable x = {
+    Trie x = {
         .c = OSF_strdup(c != NULL ? c : ""),
         .end = end,
         .mem_count = mcount,
@@ -11,22 +11,22 @@ HashTable Hash_new(char *c, HashTable *mems, int mcount, int end)
         .data = NULL};
 
     if (x.members == NULL)
-        x.members = OSF_Malloc(sizeof(HashTable));
+        x.members = OSF_Malloc(sizeof(Trie));
 
     return x;
 }
 
-HashTable *Hash_new_ptr(char *c, HashTable *mems, int mcount, int end)
+Trie *Trie_new_ptr(char *c, Trie *mems, int mcount, int end)
 {
-    HashTable *x = OSF_Malloc(sizeof(HashTable));
-    *x = Hash_new(c, mems, mcount, end);
+    Trie *x = OSF_Malloc(sizeof(Trie));
+    *x = Trie_new(c, mems, mcount, end);
 
     return x;
 }
 
-void Hash_add(HashTable *ht, char *nm, void *dat)
+void Trie_add(Trie *ht, char *nm, void *dat)
 {
-    HashTable *hc = ht;
+    Trie *hc = ht;
 
     while (*nm != '\0')
     {
@@ -35,9 +35,9 @@ void Hash_add(HashTable *ht, char *nm, void *dat)
         if (_x == NULL)
         {
             if (hc->mem_count)
-                hc->members = OSF_Realloc(hc->members, (hc->mem_count + 1) * sizeof(HashTable));
+                hc->members = OSF_Realloc(hc->members, (hc->mem_count + 1) * sizeof(Trie));
 
-            hc->members[hc->mem_count] = Hash_new("", NULL, 0, 0);
+            hc->members[hc->mem_count] = Trie_new("", NULL, 0, 0);
             hc->mem_count++;
 
             hc->c = OSF_Realloc(hc->c, (strlen(hc->c) + 2) * sizeof(char));
@@ -60,23 +60,23 @@ void Hash_add(HashTable *ht, char *nm, void *dat)
         strcat(hc->c, "$");
 
         if (hc->mem_count)
-            hc->members = OSF_Realloc(hc->members, (hc->mem_count + 1) * sizeof(HashTable));
+            hc->members = OSF_Realloc(hc->members, (hc->mem_count + 1) * sizeof(Trie));
 
-        hc->members[hc->mem_count] = Hash_new("", NULL, 0, 1);
+        hc->members[hc->mem_count] = Trie_new("", NULL, 0, 1);
         hc->members[hc->mem_count].data = dat;
         hc->mem_count++;
     }
     else
     {
         int idx = _ss - hc->c;
-        hc->members[idx] = Hash_new("", NULL, 0, 1);
+        hc->members[idx] = Trie_new("", NULL, 0, 1);
         hc->members[idx].data = dat;
     }
 }
 
-void *Hash_get(HashTable *ht, char *str)
+void *Trie_get(Trie *ht, char *str)
 {
-    HashTable *hc = ht;
+    Trie *hc = ht;
 
     while (*str != '\0')
     {
