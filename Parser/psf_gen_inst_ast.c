@@ -2271,6 +2271,88 @@ void SF_FrameIT_fromAST(mod_t *mod)
 
                     PSG_AddStmt_toMod(mod, new_stmt);
                 }
+                else if (!strcmp(tok, "try"))
+                {
+                    stmt_t nst;
+                    nst.type = STATEMENT_TYPE_TRY_EXCEPT;
+                    nst.v.try_except.body = NULL;
+                    nst.v.try_except.body_size = 0;
+                    nst.v.try_except.exc_body = NULL;
+                    nst.v.try_except.exc_body_size = 0;
+                    nst.v.try_except.exc_cond = NULL;
+                    nst.v.try_except.has_except = 0;
+                    int pres_tb = _PSF_GetTabspace(mod->ast, i);
+
+                    psf_byte_array_t *body = _PSF_GetBody(mod->ast, i + 2, pres_tb),
+                                     *exc_body,
+                                     *exc_cond = _PSF_newByteArray();
+                        
+                    mod_t *bmod = SF_CreateModule(MODULE_TYPE_FILE, body);
+                    SF_FrameIT_fromAST(bmod);
+
+                    nst.v.try_except.body = BODY(bmod)->body;
+                    nst.v.try_except.body_size = BODY(bmod)->body_size;
+
+                    OSF_Free(bmod);
+                    i += body->size + 2;
+                    int gb = 0;
+
+                    while (mod->ast->nodes[i + 1].nval_type == AST_NVAL_TYPE_NEWLINE)
+                        i++;
+
+                    if (mod->ast->nodes[i + 1].nval_type == AST_NVAL_TYPE_IDENTIFIER &&
+                        mod->ast->nodes[i + 1].v.Identifier.is_token &&
+                        !strcmp(mod->ast->nodes[i + 1].v.Identifier.val, "except"))
+                    {
+                        i++; // Eat 'except'
+                        nst.v.try_except.has_except = 1;
+                        while (i < mod->ast->size)
+                        {
+                            psf_byte_t c = mod->ast->nodes[i];
+
+                            if (c.nval_type == AST_NVAL_TYPE_OPERATOR)
+                            {
+                                if (!strcmp(c.v.Operator.val, "(") ||
+                                    !strcmp(c.v.Operator.val, "{") ||
+                                    !strcmp(c.v.Operator.val, "["))
+                                    gb++;
+                                else if (!strcmp(c.v.Operator.val, ")") ||
+                                         !strcmp(c.v.Operator.val, "}") ||
+                                         !strcmp(c.v.Operator.val, "]"))
+                                    gb--;
+                            }
+
+                            if (c.nval_type == AST_NVAL_TYPE_NEWLINE && !gb)
+                                break;
+                            
+                            PSF_AST_ByteArray_AddNode(exc_cond, c);
+                            i++;
+                        }
+
+                        nst.v.try_except.exc_cond = OSF_Malloc(sizeof(var_t));
+                        *(nst.v.try_except.exc_cond) = _PSF_GenerateVarFromByte(exc_cond);
+
+                        exc_body = _PSF_GetBody(mod->ast, i + 1, pres_tb);
+                        mod_t *emod = SF_CreateModule(MODULE_TYPE_FILE, exc_body);
+                        SF_FrameIT_fromAST(emod);
+
+                        nst.v.try_except.exc_body = BODY(emod)->body;
+                        nst.v.try_except.exc_body_size = BODY(emod)->body_size;
+
+                        i += exc_body->size + 1;
+
+                        OSF_Free(emod);
+                        OSF_Free(exc_body->nodes);
+                        OSF_Free(exc_body);
+                        OSF_Free(exc_cond->nodes);
+                        OSF_Free(exc_cond);
+                    }
+
+                    OSF_Free(body->nodes);
+                    OSF_Free(body);
+
+                    PSG_AddStmt_toMod(mod, nst);
+                }
             }
         }
         break;
@@ -2338,7 +2420,8 @@ void PSG_PrintStatementType(enum StatementTypeEnum _en)
         "STATEMENT_TYPE_REPEAT",
         "STATEMENT_TYPE_SWITCH",
         "STATEMENT_TYPE_ASSERT",
-        "STATEMENT_TYPE_DECORATOR"};
+        "STATEMENT_TYPE_DECORATOR",
+        "STATEMENT_TYPE_TRY_EXCEPT"};
 
     printf("%s(%d)\n", A[_en + 1 < (sizeof(A) / sizeof(A[0])) ? _en + 1 : 0], _en);
 }

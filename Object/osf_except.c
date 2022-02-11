@@ -31,7 +31,7 @@ int OSF_GetExceptionState(void)
 
 void OSF_SetExceptionState(int v)
 {
-    exception_occupied = v;
+    exception_occupied = !!v; /* only bool */
 }
 
 void OSF_SetException(except_t e)

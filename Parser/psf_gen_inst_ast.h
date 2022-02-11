@@ -292,7 +292,8 @@ enum StatementTypeEnum
     STATEMENT_TYPE_REPEAT,
     STATEMENT_TYPE_SWITCH,
     STATEMENT_TYPE_ASSERT,
-    STATEMENT_TYPE_DECORATOR
+    STATEMENT_TYPE_DECORATOR,
+    STATEMENT_TYPE_TRY_EXCEPT
 };
 
 struct _conditional_struct
@@ -446,6 +447,17 @@ struct _stmt
         {
             expr_t *val;
         } decorator_stmt;
+
+        struct
+        {
+            struct _stmt *body;
+            int body_size;
+            int has_except;
+            var_t *exc_cond;
+            struct _stmt *exc_body;
+            int exc_body_size;
+            
+        } try_except;
 
     } v;
 };

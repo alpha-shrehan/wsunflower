@@ -1,5 +1,4 @@
-from algorithm import range
-
-for i in range(50, 0, -1)
-    for j in range(i, 0, -1)
-        write(j)
+try
+    x = 1 + '1'
+except code
+    write(code)

@@ -1159,6 +1159,57 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
             }
         }
         break;
+        case STATEMENT_TYPE_TRY_EXCEPT:
+        {
+            psf_byte_array_t *pres_ast = mod->ast;
+            stmt_t *pres_body = BODY(mod)->body;
+            int pres_size = BODY(mod)->body_size;
+            int pres_type = mod->type;
+
+            BODY(mod)->body = curr.v.try_except.body;
+            BODY(mod)->body_size = curr.v.try_except.body_size;
+
+            OSF_Free(IPSF_ExecIT_fromMod(mod, NULL));
+
+            mod->type = pres_type;
+            mod->ast = pres_ast;
+            BODY(mod)->body = pres_body;
+            BODY(mod)->body_size = pres_size;
+
+            if (OSF_GetExceptionState())
+            {
+                except_t *e = OSF_GetExceptionLog();
+                OSF_ClearBacklog();
+                OSF_SetExceptionState(0);
+
+                if (curr.v.try_except.has_except)
+                {
+                    mod_t *emod = SF_CreateModule(mod->type, NULL);
+                    BODY(emod)->body = curr.v.try_except.exc_body;
+                    BODY(emod)->body_size = curr.v.try_except.exc_body_size;
+
+                    if (curr.v.try_except.exc_cond != NULL)
+                    {
+                        _IPSF_AddVar_toModule(
+                            emod,
+                            curr.v.try_except.exc_cond->name,
+                            (expr_t){
+                                .type = EXPR_TYPE_CONSTANT,
+                                .v.constant = {
+                                    .constant_type = CONSTANT_TYPE_INT,
+                                    .Int.value = e->type}});
+                    }
+                    emod->parent = mod;
+
+                    OSF_Free(IPSF_ExecIT_fromMod(emod, NULL));
+                    OSF_Free(emod);
+
+                    if (OSF_GetExceptionState())
+                        goto __label_abrupt_end_IPSF_ExecIT_fromMod;
+                }
+            }
+        }
+        break;
 
         default:
             break;
