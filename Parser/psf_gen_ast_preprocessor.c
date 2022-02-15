@@ -29,6 +29,7 @@ const char *PSF_ValidTokens[] = {
     "not",
     "try",
     "except",
+    "finally",
     NULL};
 
 const char *PSF_ValidDataTypes[] = {

@@ -453,9 +453,12 @@ struct _stmt
             struct _stmt *body;
             int body_size;
             int has_except;
+            int has_finally;
             var_t *exc_cond;
             struct _stmt *exc_body;
             int exc_body_size;
+            struct _stmt *finally_body;
+            int fn_body_size;
             
         } try_except;
 

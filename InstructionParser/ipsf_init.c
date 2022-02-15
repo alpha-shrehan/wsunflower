@@ -1052,6 +1052,17 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
 
                         OSF_Free(IPSF_ExecIT_fromMod(mod, NULL));
 
+                        if (mod->returns != NULL)
+                        {
+                            mod->type = pres_type;
+                            mod->ast = pres_ast;
+                            BODY(mod)->body = pres_body;
+                            BODY(mod)->body_size = pres_size;
+
+                            doBreak = 1;
+                            goto __label_abrupt_end_IPSF_ExecIT_fromMod;
+                        }
+
                         if (OSF_GetExceptionState())
                             goto __label_abrupt_end_IPSF_ExecIT_fromMod;
 
@@ -1084,6 +1095,17 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                         BODY(mod)->body_size = curr.v.switch_case.cases[j].body_size;
 
                         OSF_Free(IPSF_ExecIT_fromMod(mod, NULL));
+
+                        if (mod->returns != NULL)
+                        {
+                            mod->type = pres_type;
+                            mod->ast = pres_ast;
+                            BODY(mod)->body = pres_body;
+                            BODY(mod)->body_size = pres_size;
+
+                            doBreak = 1;
+                            goto __label_abrupt_end_IPSF_ExecIT_fromMod;
+                        }
 
                         if (OSF_GetExceptionState())
                             goto __label_abrupt_end_IPSF_ExecIT_fromMod;
@@ -1120,6 +1142,17 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                     BODY(mod)->body_size = curr.v.switch_case.def_case.body_size;
 
                     OSF_Free(IPSF_ExecIT_fromMod(mod, NULL));
+
+                    if (mod->returns != NULL)
+                    {
+                        mod->type = pres_type;
+                        mod->ast = pres_ast;
+                        BODY(mod)->body = pres_body;
+                        BODY(mod)->body_size = pres_size;
+
+                        doBreak = 1;
+                        goto __label_abrupt_end_IPSF_ExecIT_fromMod;
+                    }
 
                     if (OSF_GetExceptionState())
                         goto __label_abrupt_end_IPSF_ExecIT_fromMod;
@@ -1205,8 +1238,22 @@ expr_t *IPSF_ExecIT_fromMod(mod_t *mod, int *err)
                     OSF_Free(emod);
 
                     if (OSF_GetExceptionState())
-                        goto __label_abrupt_end_IPSF_ExecIT_fromMod;
+                        OSF_SetExceptionState(0); // Omit
                 }
+            }
+
+            if (curr.v.try_except.has_finally)
+            {
+                mod_t *fmod = SF_CreateModule(mod->type, NULL);
+                BODY(fmod)->body = curr.v.try_except.finally_body;
+                BODY(fmod)->body_size = curr.v.try_except.fn_body_size;
+                fmod->parent = mod;
+
+                OSF_Free(IPSF_ExecIT_fromMod(fmod, NULL));
+                OSF_Free(fmod);
+
+                if (OSF_GetExceptionState())
+                    goto __label_abrupt_end_IPSF_ExecIT_fromMod;
             }
         }
         break;
@@ -1480,18 +1527,25 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
 
             int ve = 0;
             var_t *var__main = IPSF_GetVar_fromMod(inst_ref->mod, "__main__", &ve);
+            int cmain = 1;
 
             if (ve == IPSF_ERR_VAR_NOT_FOUND)
-                OSF_RaiseException_ClassHasNoConstructor(expr->line, inst_ref);
+            {
+                cmain = 0;
+                // OSF_RaiseException_ClassHasNoConstructor(expr->line, inst_ref);
+            }
 
             if (OSF_GetExceptionState())
                 goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
 
-            if (var__main->val.type != EXPR_TYPE_FUNCTION)
-                OSF_RaiseException_EntityIsNotAFunction(expr->line, var__main);
+            if (cmain)
+            {
+                if (var__main->val.type != EXPR_TYPE_FUNCTION)
+                    OSF_RaiseException_EntityIsNotAFunction(expr->line, var__main);
 
-            if (OSF_GetExceptionState())
-                goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
+                if (OSF_GetExceptionState())
+                    goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
+            }
 
             expr_t *cons_args = OSF_Malloc((expr->v.function_call.arg_size + 1) * sizeof(expr_t));
             *cons_args = (expr_t){
@@ -1518,12 +1572,15 @@ expr_t *IPSF_ExecExprStatement_fromMod(mod_t *mod, stmt_t stmt, int *err)
                     goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
             }
 
-            mod_t *mpass = inst_c.mod->parent;
-            fun_t _c_main = (*PSG_GetFunctions())[var__main->val.v.function_s.index];
-            expr_t *main_res = _IPSF_CallFunction(_c_main, cons_args, expr->v.function_call.arg_size + 1, mpass);
+            if (cmain)
+            {
+                mod_t *mpass = inst_c.mod->parent;
+                fun_t _c_main = (*PSG_GetFunctions())[var__main->val.v.function_s.index];
+                expr_t *main_res = _IPSF_CallFunction(_c_main, cons_args, expr->v.function_call.arg_size + 1, mpass);
 
-            if (OSF_GetExceptionState())
-                goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
+                if (OSF_GetExceptionState())
+                    goto __label_abrupt_end_IPSF_ExecExprStatement_fromMod;
+            }
 
             *RES = *cons_args; // self
 
@@ -4155,7 +4212,15 @@ expr_t _IPSF_ExecLogicalArithmetic(expr_t _lhs, int op_ty, expr_t _rhs)
             break;
 
             default:
-                break;
+            {
+                char *_x = _IPSF_ObjectRepr(_lhs, 0),
+                     *_y = _IPSF_ObjectRepr(_rhs, 0);
+                _res.v.constant.Bool.value = !strcmp(_x, _y);
+
+                OSF_Free(_x);
+                OSF_Free(_y);
+            }
+            break;
             }
         }
         else

@@ -1,4 +1,19 @@
+from exception import *
+
 try
-    x = 1 + '1'
+    a
 except code
     write(code)
+    code = express(code)
+    
+    switch code
+        case IndexError
+            write('Index Error')
+        case NameError
+            write('Name Error')
+        case AssertionError
+            write('Assertion Error')
+        default
+            write('Unknown Error', code)
+finally
+    write('End')

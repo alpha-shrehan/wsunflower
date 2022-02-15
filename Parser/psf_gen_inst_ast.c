@@ -2281,12 +2281,16 @@ void SF_FrameIT_fromAST(mod_t *mod)
                     nst.v.try_except.exc_body_size = 0;
                     nst.v.try_except.exc_cond = NULL;
                     nst.v.try_except.has_except = 0;
+                    nst.v.try_except.has_finally = 0;
+                    nst.v.try_except.fn_body_size = 0;
+                    nst.v.try_except.finally_body = NULL;
                     int pres_tb = _PSF_GetTabspace(mod->ast, i);
 
                     psf_byte_array_t *body = _PSF_GetBody(mod->ast, i + 2, pres_tb),
                                      *exc_body,
+                                     *fn_body,
                                      *exc_cond = _PSF_newByteArray();
-                        
+
                     mod_t *bmod = SF_CreateModule(MODULE_TYPE_FILE, body);
                     SF_FrameIT_fromAST(bmod);
 
@@ -2297,7 +2301,8 @@ void SF_FrameIT_fromAST(mod_t *mod)
                     i += body->size + 2;
                     int gb = 0;
 
-                    while (mod->ast->nodes[i + 1].nval_type == AST_NVAL_TYPE_NEWLINE)
+                    while (mod->ast->nodes[i + 1].nval_type == AST_NVAL_TYPE_NEWLINE ||
+                           mod->ast->nodes[i + 1].nval_type == AST_NVAL_TYPE_TABSPACE)
                         i++;
 
                     if (mod->ast->nodes[i + 1].nval_type == AST_NVAL_TYPE_IDENTIFIER &&
@@ -2324,7 +2329,7 @@ void SF_FrameIT_fromAST(mod_t *mod)
 
                             if (c.nval_type == AST_NVAL_TYPE_NEWLINE && !gb)
                                 break;
-                            
+
                             PSF_AST_ByteArray_AddNode(exc_cond, c);
                             i++;
                         }
@@ -2346,6 +2351,31 @@ void SF_FrameIT_fromAST(mod_t *mod)
                         OSF_Free(exc_body);
                         OSF_Free(exc_cond->nodes);
                         OSF_Free(exc_cond);
+                    }
+
+                    while (mod->ast->nodes[i].nval_type == AST_NVAL_TYPE_NEWLINE ||
+                           mod->ast->nodes[i].nval_type == AST_NVAL_TYPE_TABSPACE)
+                        i++;
+
+                    if (mod->ast->nodes[i].nval_type == AST_NVAL_TYPE_IDENTIFIER &&
+                        mod->ast->nodes[i].v.Identifier.is_token &&
+                        !strcmp(mod->ast->nodes[i].v.Identifier.val, "finally"))
+                    {
+                        i++; // Eat 'finally'
+                        nst.v.try_except.has_finally = 1;
+
+                        fn_body = _PSF_GetBody(mod->ast, i + 1, pres_tb);
+                        mod_t *emod = SF_CreateModule(MODULE_TYPE_FILE, fn_body);
+                        SF_FrameIT_fromAST(emod);
+
+                        nst.v.try_except.finally_body = BODY(emod)->body;
+                        nst.v.try_except.fn_body_size = BODY(emod)->body_size;
+
+                        i += fn_body->size + 1;
+
+                        OSF_Free(emod);
+                        OSF_Free(fn_body->nodes);
+                        OSF_Free(fn_body);
                     }
 
                     OSF_Free(body->nodes);

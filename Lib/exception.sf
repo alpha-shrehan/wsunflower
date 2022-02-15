@@ -1,0 +1,29 @@
+class Exception
+    fun __main__(self)
+        None
+
+@Exception
+class IndexError
+    None
+
+@Exception
+class NameError
+    None
+
+@Exception
+class AssertionError
+    None
+
+@Exception
+class InternalError
+    None
+
+fun express(val)
+    switch val
+        case 0
+            return IndexError
+        case 1
+            return NameError
+        case 11
+            return AssertionError
+    return InternalError
